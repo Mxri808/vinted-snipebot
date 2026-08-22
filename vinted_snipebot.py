@@ -322,16 +322,14 @@ class VintedSnipebot:
         """Scrape a category. Sends photos immediately. Returns (count, blocked)."""
         max_price = CAT_MAX_PRICES.get(category, 50)
         sent = 0
-        brand_ids_list = [str(v) for v in self._brand_ids.values() if v is not None]
 
         for catalog_id in catalog_ids:
             if self._shutdown:
                 break
             page = 1
-            while page <= 1:
+            while page <= 2:
                 page_items = self.scrape_catalog_page(
-                    catalog_id, page, max_price,
-                    brand_ids_to_use=brand_ids_list
+                    catalog_id, page, max_price
                 )
                 if page_items is None:
                     return sent, True
@@ -362,21 +360,21 @@ class VintedSnipebot:
                                     result = self.send_telegram_photo(image_url, caption)
                                     if result == "ok":
                                         sent += 1
-                                        time.sleep(random.uniform(2.5, 3.5))
+                                        time.sleep(random.uniform(2, 3))
                                     elif result == "rate_limit":
                                         print(f"   ⏳ Rate-limit — warte 25s...")
                                         time.sleep(25)
                                         result2 = self.send_telegram_photo(image_url, caption)
                                         if result2 == "ok":
                                             sent += 1
-                                            time.sleep(random.uniform(2.5, 3.5))
-                                    time.sleep(1)
+                                            time.sleep(random.uniform(2, 3))
+                                    time.sleep(0.5)
                 if len(page_items) < 96:
                     break
                 page += 1
-                time.sleep(random.uniform(4, 7))
+                time.sleep(random.uniform(3, 5))
 
-            time.sleep(random.uniform(5, 8))
+            time.sleep(random.uniform(4, 6))
 
         return sent, False
 
