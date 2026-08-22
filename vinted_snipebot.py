@@ -328,7 +328,7 @@ class VintedSnipebot:
             if self._shutdown:
                 break
             page = 1
-            while page <= 2:
+            while page <= 1:
                 page_items = self.scrape_catalog_page(
                     catalog_id, page, max_price,
                     brand_ids_to_use=brand_ids_list
@@ -377,7 +377,7 @@ class VintedSnipebot:
                 page += 1
                 time.sleep(random.uniform(3, 5))
 
-            time.sleep(random.uniform(3, 5))
+            time.sleep(random.uniform(5, 8))
 
         return sent, False
 
