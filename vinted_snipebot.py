@@ -559,12 +559,17 @@ class VintedSnipebot:
                 if blocked:
                     wait = random.randint(1800, 3600)
                     print(f"\n⏳ Cloudflare Block! Warte {wait}s (~{wait//60} Min)...")
+                    self.send_telegram_text(f"⚠️ Cloudflare Block — warte ~{wait//60} Min")
                     self.save_seen_items()
                     time.sleep(wait)
                     continue
 
                 if all_new_items:
                     print(f"\n📤 Fertig! {photo_count}/{len(all_new_items)} Fotos gesendet!")
+                    status = (
+                        f"✅ Scan fertig — {photo_count}/{len(all_new_items)} Fotos gesendet"
+                    )
+                    self.send_telegram_text(status)
                     is_first_run = False
                 else:
                     print("\n📭 Keine neuen Angebote.")
