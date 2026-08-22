@@ -348,9 +348,9 @@ class VintedSnipebot:
             return "error"
 
         try:
-            img_resp = std_requests.get(
+            img_resp = self.session.get(
                 image_url,
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://www.vinted.de/"},
+                headers={"Referer": "https://www.vinted.de/"},
                 timeout=15,
             )
             if img_resp.status_code != 200 or len(img_resp.content) < 100:
