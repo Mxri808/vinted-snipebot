@@ -364,19 +364,20 @@ class VintedSnipebot:
                                         sent += 1
                                         time.sleep(random.uniform(2, 3))
                                     elif result == "rate_limit":
-                                        print(f"   ⏳ Rate-limit — warte 25s...")
-                                        time.sleep(25)
+                                        print(f"   ⏳ Rate-limit — warte 30s...")
+                                        time.sleep(30)
                                         result2 = self.send_telegram_photo(image_url, caption)
                                         if result2 == "ok":
                                             sent += 1
-                                            time.sleep(random.uniform(2, 3))
-                                    time.sleep(0.5)
+                                        time.sleep(5)
+                                    else:
+                                        time.sleep(2)
                 if len(page_items) < 96:
                     break
                 page += 1
                 time.sleep(random.uniform(3, 5))
 
-            time.sleep(random.uniform(4, 6))
+            time.sleep(random.uniform(3, 5))
 
         return sent, False
 
