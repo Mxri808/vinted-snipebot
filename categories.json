@@ -1,0 +1,290 @@
+{
+  "damen": {
+    "kleidung": {
+      "jacken_maentel": {
+        "names": ["Capes & Ponchos", "Dufflecoats", "Teddymäntel", "Klassische & lange Mäntel", "Parkas", "Cabans & Kurzmäntel", "Regenmäntel", "Trenchcoats", "Westen", "Biker- & Racer-Jacken", "Bomberjacken", "Jeansjacken", "Jacken im Military- & Utility-Stil", "Fleecejacken", "Daunenjacken", "Steppjacken", "Hemdjacken", "Ski- & Snowboard-Jacken", "Collegejacken", "Windbreaker"],
+        "ids": ["2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2020", "2030", "2031", "2032", "2033", "2034", "2035", "2036", "2037", "2038", "2039", "2040"]
+      },
+      "pullover_strickpullover": {
+        "names": ["Hoodies & Sweaters", "Pullover mit V-Ausschnitt", "Rollkragenpullover", "Lange Pullover", "Strickpullover", "¾-ärmelige Pullover", "Andere Pullover", "Kimonos", "Strickjacken", "Boleros", "Westen", "Sonstiges"],
+        "ids": ["2100", "2110", "2111", "2112", "2113", "2114", "2115", "2120", "2130", "2140", "2150", "2160"]
+      },
+      "blazer_anzuege": {
+        "names": ["Blazer", "Hosenanzüge", "Kostüme und Abendanzüge", "Einzelne Anzugteile", "Andere Anzüge & Blazer"],
+        "ids": ["2200", "2210", "2220", "2230", "2240"]
+      },
+      "kleider": {
+        "names": ["Minikleider", "Midikleider", "Maxikleider", "Party & Cocktail", "Hochzeitskleider", "Abschlussballkleider", "Abendkleider", "Rückenfreie Kleider", "Sommerkleider", "Winterkleider", "Formelle & Business-Kleider", "Lässige Kleider", "Trägerlose Kleider", "Kleine Schwarze", "Jeanskleider", "Sonstiges"],
+        "ids": ["2300", "2301", "2302", "2310", "2311", "2312", "2313", "2314", "2320", "2321", "2330", "2340", "2350", "2360", "2370", "2380"]
+      },
+      "roecke": {
+        "names": ["Miniröcke", "Knielange Röcke", "Midiröcke", "Maxiröcke", "Asymmetrische Röcke", "Skorts"],
+        "ids": ["2400", "2410", "2420", "2430", "2440", "2450"]
+      },
+      "tops_t_shirts": {
+        "names": ["Shirts", "Blusen", "Westen", "T-Shirts", "Trägerhemden", "Tuniken", "Bauchfreie Tops", "Kurzärmelige Blusen", "¾-Blusen", "Langärmelige Blusen", "Bodys", "Schulterfreie Tops", "Rollkragen", "Schößchentops", "Neckholder-Tops", "Sonstiges"],
+        "ids": ["2500", "2510", "2520", "2530", "2540", "2550", "2560", "2570", "2571", "2572", "2580", "2590", "2591", "2592", "2593", "2594"]
+      },
+      "jeans": {
+        "names": ["Boyfriend Jeans", "Cropped Jeans", "Schlaghosen", "Jeans mit hoher Taille", "Ripped Jeans", "Röhrenjeans", "Gerade geschnittene Jeans", "Sonstiges"],
+        "ids": ["2600", "2610", "2620", "2630", "2640", "2650", "2660", "2670"]
+      },
+      "hosen_leggings": {
+        "names": ["Dreiviertel-Hosen & Chinos", "Hosen mit weitem Bein", "Röhrenhosen", "Hosen nach Maß", "Gerade geschnittene Hosen", "Lederhosen", "Leggings", "Pluderhosen", "Sonstiges"],
+        "ids": ["2700", "2710", "2720", "2730", "2740", "2750", "2760", "2770", "2780"]
+      },
+      "shorts": {
+        "names": ["Shorts mit tiefer Taille", "Shorts mit hoher Taille", "Knielange Shorts", "Jeansshorts", "Schnürshorts", "Ledershorts", "Cargoshorts", "Capri-Hosen", "Sonstiges"],
+        "ids": ["2800", "2810", "2820", "2830", "2840", "2850", "2860", "2870", "2880"]
+      },
+      "jumpsuits_playsuits": {
+        "names": ["Overalls", "Einteiler", "Andere Jump- & Playsuits"],
+        "ids": ["2900", "2910", "2920"]
+      },
+      "bademode": {
+        "names": ["Badeanzüge", "Bikinis", "Strandblusen & Sarongs", "Sonstiges"],
+        "ids": ["3000", "3010", "3020", "3030"]
+      },
+      "unterwaesche_nachtwaäsche": {
+        "names": ["BHs", "Slips", "Sets", "Figur formende Unterwäsche", "Nachtwäsche & Pyjamas", "Bademäntel", "Strumpfhosen", "Socken", "Accessoires für Dessous", "Sonstiges"],
+        "ids": ["3100", "3110", "3120", "3130", "3140", "3150", "3160", "3170", "3180", "3190"]
+      },
+      "umstandskleidung": {
+        "names": ["Shirts, Tops & Blusen", "Kleider", "Röcke", "Hosen", "Shorts & Capris", "Overalls für Schwangere", "Pullover und Jacken", "Mäntel & Jacken", "Badekleidung", "Unterwäsche", "Sportkleidung"],
+        "ids": ["3200", "3210", "3220", "3230", "3240", "3250", "3260", "3270", "3280", "3290", "3291"]
+      },
+      "activewear": {
+        "names": ["Oberbekleidung", "Trainingsanzüge", "Hosen & Leggins", "Shorts", "Kleider", "Röcke", "Oberteile & T-Shirts", "Trikots", "Hoodies & Langarmshirts", "Accessoires", "BHs", "Sonstiges"],
+        "ids": ["3300", "3310", "3320", "3330", "3340", "3350", "3360", "3370", "3380", "3390", "3391", "3392"]
+      }
+    },
+    "schuhe": {
+      "allgemein": {
+        "names": ["Ballerinas", "Bootsschuhe, Loafer & Mokassins", "Clogs", "Espadrilles", "Zehentrenner & Slides", "Absatzschuhe", "Schnürschuhe", "Spangenschuhe & Schuhe mit T-Steg", "Sandalen", "Hausschuhe, Pantoffeln & Slipper", "Sneaker"],
+        "ids": ["5000", "5010", "5020", "5030", "5040", "5050", "5060", "5070", "5080", "5090", "5100"]
+      },
+      "stiefel": {
+        "names": ["Stiefeletten", "Halbhohe Stiefel", "Kniehohe Stiefel", "Overknees", "Schneestiefel", "Gummistiefel", "Arbeitsstiefel"],
+        "ids": ["5200", "5210", "5220", "5230", "5240", "5250", "5260"]
+      },
+      "sportschuhe": {
+        "names": ["Basketballschuhe", "Kletterschuhe", "Fahrradschuhe", "Tanzschuhe", "Fußballschuhe", "Golfschuhe", "Wander- & Trekkingschuhe", "Schlittschuhe", "Hallenfußballschuhe", "Sportschuhe für drinnen", "Motorradstiefel", "Rollschuhe & Inlineskates", "Laufschuhe", "Skistiefel", "Snowboard Boots", "Schwimm- & Wasserschuhe", "Tennisschuhe"],
+        "ids": ["5300", "5310", "5320", "5330", "5340", "5350", "5360", "5370", "5380", "5390", "5400", "5410", "5420", "5430", "5440", "5450", "5460"]
+      }
+    },
+    "taschen": {
+      "allgemein": {
+        "names": ["Rucksäcke", "Strandtaschen", "Aktentaschen", "Bucket Bags", "Bauchtaschen", "Clutches", "Kleiderhüllen", "Sporttaschen", "Handtaschen", "Hobo Bags", "Reisetaschen", "Kosmetiktaschen", "Satchels & Messenger Bags", "Umhängetaschen", "Tragetaschen", "Portemonnaies", "Wristlets"],
+        "ids": ["6000", "6010", "6020", "6030", "6040", "6050", "6060", "6070", "6080", "6090", "6100", "6110", "6120", "6130", "6140", "6150", "6160"]
+      }
+    },
+    "accessoires": {
+      "allgemein": {
+        "names": ["Bandanas & Kopftücher", "Gürtel", "Handschuhe", "Haarschmuck", "Halstücher", "Schlüsselanhänger", "Tücher & Schals", "Sonnenbrillen", "Regenschirme", "Uhren", "Sonstige Accessoires"],
+        "ids": ["7000", "7010", "7020", "7030", "7040", "7050", "7060", "7070", "7080", "7090", "7100"]
+      },
+      "huete_muetzen": {
+        "names": ["Balaklavas", "Beanies", "Mützen", "Ohrenschützer", "Fascinators", "Hüte", "Stirnbänder"],
+        "ids": ["7200", "7210", "7220", "7230", "7240", "7250", "7260"]
+      },
+      "schmuck": {
+        "names": ["Fußkettchen", "Körperschmuck", "Armbänder", "Broschen", "Charms & Anhänger", "Ohrringe", "Schmucksets", "Halsketten", "Ringe", "Anderer Schmuck"],
+        "ids": ["7300", "7310", "7320", "7330", "7340", "7350", "7360", "7370", "7380", "7390"]
+      }
+    }
+  },
+  "herren": {
+    "kleidung": {
+      "jeans": {
+        "names": ["Ripped Jeans", "Röhrenjeans", "Jeans mit enger Passform", "Gerade geschnittene Jeans"],
+        "ids": ["4000", "4010", "4020", "4030"]
+      },
+      "jacken_maentel": {
+        "names": ["Dufflecoats", "Klassische & lange Mäntel", "Parkas", "Cabans & Kurzmäntel", "Regenmäntel", "Trenchcoats", "Westen", "Biker- & Racer-Jacken", "Bomberjacken", "Jeansjacken", "Jacken im Military- & Utility-Stil", "Fleecejacken", "Harrington-Jacken", "Daunenjacken", "Steppjacken", "Hemdjacken", "Ski- & Snowboard-Jacken", "Collegejacken", "Windbreaker", "Ponchos"],
+        "ids": ["4100", "4101", "4102", "4103", "4104", "4105", "4110", "4120", "4121", "4122", "4123", "4124", "4125", "4126", "4127", "4128", "4129", "4130", "4131", "4140"]
+      },
+      "tops_t_shirts": {
+        "names": ["Karierte Hemden", "Jeanshemden", "Einfarbige Hemden", "Bedruckte Hemden", "Gestreifte Hemden", "Sonstiges", "Einfarbige T-Shirts", "Bedruckte T-Shirts", "Gestreifte T-Shirts", "Langärmelige T-Shirts", "Sonstiges", "Polohemden", "Westen"],
+        "ids": ["4200", "4201", "4202", "4203", "4204", "4205", "4210", "4211", "4212", "4213", "4214", "4220", "4230"]
+      },
+      "anzuege_blazer": {
+        "names": ["Blazer", "Anzughosen", "Westen", "Anzugsets", "Hochzeitsanzüge", "Sonstiges"],
+        "ids": ["4300", "4310", "4320", "4330", "4340", "4350"]
+      },
+      "pullover_sweater": {
+        "names": ["Sweater", "Pullis & Hoodies", "Kapuzenjacken", "Strickjacken", "Pullover mit Rundhalsausschnitt", "Pullover mit V-Ausschnitt", "Rollkragenpullover", "Lange Pullover", "Strickpullover für den Winter", "Westen", "Sonstiges"],
+        "ids": ["4400", "4410", "4420", "4430", "4440", "4441", "4442", "4443", "4444", "4450", "4460"]
+      },
+      "hosen": {
+        "names": ["Chinos", "Jogging-Hosen", "Hosen mit enger Passform", "Capri-Hosen", "Multifunktionshosen", "Breit geschnittene Hosen", "Sonstiges"],
+        "ids": ["4500", "4510", "4520", "4530", "4540", "4550", "4560"]
+      },
+      "shorts": {
+        "names": ["Cargoshorts", "Chino-Shorts", "Jeansshorts", "Andere Shorts"],
+        "ids": ["4600", "4610", "4620", "4630"]
+      },
+      "unterwaesche_socken": {
+        "names": ["Unterwäsche", "Socken", "Bademäntel", "Sonstiges"],
+        "ids": ["4700", "4710", "4720", "4730"]
+      },
+      "nachtwaäsche": {
+        "names": ["Einteilige Pyjamas", "Pyjamahosen", "Pyjamasetes", "Pyjamaoberteile"],
+        "ids": ["4800", "4810", "4820", "4830"]
+      },
+      "badebekleidung": {
+        "names": ["Badebekleidung"],
+        "ids": ["4900"]
+      },
+      "sportartikel": {
+        "names": ["Oberbekleidung", "Trainingsanzüge", "Hosen", "Shorts", "Oberteile & T-Shirts", "Trikots", "Pullover & Sweater", "Accessoires"],
+        "ids": ["4950", "4951", "4952", "4953", "4954", "4955", "4956", "4957"]
+      }
+    },
+    "schuhe": {
+      "allgemein": {
+        "names": ["Bootsschuhe, Loafer & Mokassins", "Clogs & Pantoletten", "Espadrilles", "Zehentrenner & Slides", "Elegante Schuhe", "Sandalen", "Hausschuhe, Pantoffeln & Slipper", "Sneaker"],
+        "ids": ["5500", "5510", "5520", "5530", "5540", "5550", "5560", "5570"]
+      },
+      "stiefel": {
+        "names": ["Chelsea Boots & Schlupfstiefel", "Desert Boots & Schnürstiefel", "Schneestiefel", "Gummistiefel", "Arbeitsstiefel"],
+        "ids": ["5600", "5610", "5620", "5630", "5640"]
+      },
+      "sportschuhe": {
+        "names": ["Basketballschuhe", "Kletterschuhe", "Fahrradschuhe", "Tanzschuhe", "Fußballschuhe", "Golfschuhe", "Wander- & Trekkingschuhe", "Schlittschuhe", "Hallenfußballschuhe", "Sportschuhe für drinnen", "Motorradstiefel", "Rollschuhe & Inlineskates", "Laufschuhe", "Skistiefel", "Snowboard Boots", "Schwimm- & Wasserschuhe", "Tennisschuhe"],
+        "ids": ["5700", "5710", "5720", "5730", "5740", "5750", "5760", "5770", "5780", "5790", "5800", "5810", "5820", "5830", "5840", "5850", "5860"]
+      }
+    },
+    "taschen": {
+      "allgemein": {
+        "names": ["Rucksäcke", "Aktentaschen", "Bauchtaschen", "Kleiderhüllen", "Sporttaschen", "Reisetaschen", "Reisegepäck & Koffer", "Satchels & Messenger Bags", "Umhängetaschen", "Börsen"],
+        "ids": ["6500", "6510", "6520", "6530", "6540", "6550", "6560", "6570", "6580", "6590"]
+      }
+    },
+    "accessoires": {
+      "allgemein": {
+        "names": ["Bandanas & Kopftücher", "Gürtel", "Hosenträger", "Handschuhe", "Halstücher", "Einstecktücher", "Tücher & Schals", "Sonnenbrillen", "Krawatten & Fliegen", "Uhren", "Sonstiges"],
+        "ids": ["7500", "7510", "7520", "7530", "7540", "7550", "7560", "7570", "7580", "7590", "7600"]
+      },
+      "huete_muetzen": {
+        "names": ["Balaklavas", "Beanies", "Käppis", "Hüte"],
+        "ids": ["7700", "7710", "7720", "7730"]
+      },
+      "schmuck": {
+        "names": ["Armbänder", "Charms & Anhänger", "Manschettenknöpfe", "Ohrschmuck", "Halsketten", "Ringe", "Sonstiges"],
+        "ids": ["7800", "7810", "7820", "7830", "7840", "7850", "7860"]
+      }
+    }
+  },
+  "kinder": {
+    "maedchen": {
+      "babykleidung": {
+        "names": ["Baby-Schlafanzüge", "Bodies", "Strampler", "Sets", "Andere"],
+        "ids": ["8000", "8010", "8020", "8030", "8040"]
+      },
+      "schuhe": {
+        "names": ["Baby- & Krabbelschuhe", "Stiefeletten", "Halbhohe Stiefel", "Schneestiefel", "Gummistiefel", "Clogs", "Ballerinas, Spangenschuhe & Schuhe mit T-Steg", "Espadrilles", "Schnürschuhe", "Zehentrenner", "Sandalen", "Badelatschen", "Schuhe für besondere Anlässe", "Absatzschuhe", "Hausschuhe, Pantoffeln & Slipper", "Sportschuhe", "Klettverschluss-Sneaker", "Sneaker zum Schnüren", "Sneaker zum Reinschlüpfen"],
+        "ids": ["8100", "8110", "8111", "8112", "8113", "8120", "8130", "8131", "8132", "8140", "8141", "8142", "8150", "8160", "8170", "8180", "8190", "8191", "8192"]
+      },
+      "outerwear": {
+        "names": ["Dufflecoats", "Parkas", "Cabans & Kurzmäntel", "Trenchcoats", "Westen", "Blazer", "Bomberjacken", "Jeansjacken", "Fleecejacken", "Daunenjacken", "Windbreaker", "Ponchos", "Regenanzüge & -sets", "Regenhosen", "Regenmäntel", "Schnee- & Skijacken", "Schneeanzüge & -sets", "Schneehosen"],
+        "ids": ["8200", "8201", "8202", "8203", "8210", "8220", "8221", "8222", "8223", "8224", "8225", "8230", "8240", "8241", "8242", "8250", "8251", "8252"]
+      },
+      "pullover_jaeckchen": {
+        "names": ["Pullover", "Pullover mit V-Kragen", "Rollkragenpullover", "Strickjäckchen und Sweatjacken", "Boleros", "Hoodies / Kapuzenpullover", "(Indoor-) Westen", "Sonstige"],
+        "ids": ["8300", "8310", "8320", "8330", "8340", "8350", "8360", "8370"]
+      },
+      "shirts_tops_blusen": {
+        "names": ["T-Shirts", "Poloshirts", "Langarm-Blusen & -Hemden", "Kurzärmelige Blusen & Hemden", "Langarmshirts / Longsleeves", "Ärmellose Tops & Blusen", "Tuniken", "Sonstige"],
+        "ids": ["8400", "8410", "8420", "8421", "8430", "8440", "8450", "8460"]
+      },
+      "kleider": {
+        "names": ["Kurze Kleider", "Lange Kleider"],
+        "ids": ["8500", "8510"]
+      },
+      "roecke": {
+        "names": ["Röcke"],
+        "ids": ["8600"]
+      },
+      "hosen_shorts": {
+        "names": ["Jeans", "Enge Hosen", "Hosen mit weitem Bein", "Leggings", "Latzhosen, Jumpsuits & Romper", "Shorts & Caprihosen", "Harems- & Pumphosen", "Andere"],
+        "ids": ["8700", "8710", "8720", "8730", "8740", "8750", "8760", "8770"]
+      },
+      "taschen": {
+        "names": ["Kinder-Handtaschen"],
+        "ids": ["8800"]
+      },
+      "accessoires": {
+        "names": ["Hüte & Mützen", "Handschuhe", "Schals & Tücher", "Gürtel", "Haarspangen & -gummis", "Kinder-Geldbörsen", "Schmuck für Kinder", "Andere"],
+        "ids": ["8900", "8910", "8920", "8930", "8940", "8950", "8960", "8970"]
+      },
+      "badekleidung": {
+        "names": ["Badeanzüge & UV-Schutzkleidung", "Bikinis", "Bademäntel"],
+        "ids": ["9000", "9010", "9020"]
+      },
+      "unterwaesche_socken": {
+        "names": ["Socken", "Strumpfhosen", "Unterwäsche", "Sonstige Unterwäsche & Socken"],
+        "ids": ["9100", "9110", "9120", "9130"]
+      },
+      "nachtwaäsche": {
+        "names": ["Einteilige Schlafanzüge", "Zweiteilige Schlafanzüge", "Nachthemden"],
+        "ids": ["9200", "9210", "9220"]
+      }
+    },
+    "jungs": {
+      "babykleidung": {
+        "names": ["Baby-Schlafanzüge", "Bodies", "Strampler", "Sets", "Sonstige Babysachen"],
+        "ids": ["9300", "9310", "9320", "9330", "9340"]
+      },
+      "schuhe": {
+        "names": ["Baby- & Krabbelschuhe", "Bootsschuhe, Loafer & Mokassins", "Stiefeletten", "Halbhohe Stiefel", "Schneestiefel", "Gummistiefel", "Espadrilles", "Clogs", "Zehentrenner", "Sandalen", "Badelatschen", "Schuhe für besondere Anlässe", "Hausschuhe, Pantoffeln & Slipper", "Sportschuhe", "Klettverschluss-Sneaker", "Sneaker zum Schnüren", "Sneaker zum Reinschlüpfen"],
+        "ids": ["9400", "9410", "9420", "9421", "9422", "9423", "9430", "9440", "9450", "9451", "9452", "9460", "9470", "9480", "9490", "9491", "9492"]
+      },
+      "outerwear": {
+        "names": ["Dufflecoats", "Parkas", "Cabans & Kurzmäntel", "Trenchcoats", "Westen", "Blazer", "Bomberjacken", "Jeansjacken", "Fleecejacken", "Daunenjacken", "Windbreaker", "Ponchos", "Regenanzüge & -sets", "Regenhosen", "Regenmäntel", "Schnee- & Skijacken", "Schneeanzüge & -sets", "Schneehosen"],
+        "ids": ["9500", "9501", "9502", "9503", "9510", "9520", "9521", "9522", "9523", "9524", "9525", "9530", "9540", "9541", "9542", "9550", "9551", "9552"]
+      },
+      "pullover_jaeckchen": {
+        "names": ["Pullover", "Pullover mit V-Kragen", "Rollkragenpullover", "Cardigans & Sweatjacken", "Hoodies & Sweatshirts", "Westen", "Sonstige"],
+        "ids": ["9600", "9610", "9620", "9630", "9640", "9650", "9660"]
+      },
+      "shirts_tops_hemden": {
+        "names": ["T-Shirts", "Poloshirts", "Langarm-Hemden", "Kurzarm-Hemden", "Langarmshirts / Longsleeves", "Ärmellose Shirts & Tops", "Sonstige"],
+        "ids": ["9700", "9710", "9720", "9721", "9730", "9740", "9750"]
+      },
+      "hosen_shorts": {
+        "names": ["Jeans", "Skinny-Hosen", "Hosen", "Leggings", "Latzhosen, Jumpsuits & Romper", "Shorts & Caprihosen", "Haremshosen & Pumphosen", "Andere"],
+        "ids": ["9800", "9810", "9820", "9830", "9840", "9850", "9860", "9870"]
+      },
+      "taschen": {
+        "names": ["Kinder-Handtaschen"],
+        "ids": ["9880"]
+      },
+      "accessoires": {
+        "names": ["Hüte & Mützen", "Handschuhe", "Schals & Tücher", "Gürtel", "Geldbörsen", "Schleifen & Bänder", "Accessoires für Jungs"],
+        "ids": ["9890", "9891", "9892", "9893", "9894", "9895", "9896"]
+      },
+      "badekleidung": {
+        "names": ["Badehosen", "Bademäntel"],
+        "ids": ["9900", "9910"]
+      },
+      "unterwaesche": {
+        "names": ["Socken", "Strumpfhosen", "Unterwäsche", "Sonstige Unterwäsche & Socken"],
+        "ids": ["9920", "9930", "9940", "9950"]
+      },
+      "nachtwaäsche": {
+        "names": ["Einteilige Schlafanzüge", "Zweiteilige Schlafanzüge"],
+        "ids": ["9960", "9970"]
+      }
+    }
+  },
+  "designer": {
+    "damen": {
+      "names": ["Designertaschen", "Designerschuhe", "Designer-Accessoires", "Designerkleidung"],
+      "ids": ["10000", "10010", "10020", "10030"]
+    },
+    "herren": {
+      "names": ["Designerschuhe", "Designer-Accessoires", "Designerkleidung"],
+      "ids": ["10100", "10110", "10120"]
+    }
+  }
+}
