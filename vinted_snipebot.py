@@ -346,9 +346,9 @@ class VintedSnipebot:
                 if len(page_items) < 96:
                     break
                 page += 1
-                time.sleep(random.uniform(8, 14))
+                time.sleep(random.uniform(5, 8))
 
-            time.sleep(random.uniform(10, 18))
+            time.sleep(random.uniform(6, 10))
 
         return all_items, False
 
@@ -501,6 +501,8 @@ class VintedSnipebot:
                 self.refresh_session()
                 all_new_items = []
                 blocked = False
+                photo_count = 0
+                fail_count = 0
 
                 cats = list(CATALOG_IDS.items())
                 random.shuffle(cats)
@@ -529,6 +531,28 @@ class VintedSnipebot:
                             )
                             self.mark_as_seen(item_id)
                             all_new_items.append(item)
+                            image_url = item.get("image_url", "")
+                            if image_url:
+                                caption = self.format_item_caption(item)
+                                result = self.send_telegram_photo(image_url, caption)
+                                if result == "ok":
+                                    photo_count += 1
+                                    time.sleep(random.uniform(2.5, 3.5))
+                                elif result == "rate_limit":
+                                    print(f"   ⏳ Rate-limit — warte 25s...")
+                                    time.sleep(25)
+                                    result2 = self.send_telegram_photo(image_url, caption)
+                                    if result2 == "ok":
+                                        photo_count += 1
+                                        time.sleep(random.uniform(2.5, 3.5))
+                                    else:
+                                        fail_count += 1
+                                else:
+                                    fail_count += 1
+                                    if fail_count >= 5:
+                                        print(f"   ⛔ 5x fehlgeschlagen — stoppe Foto-Versand")
+                                        break
+                                    time.sleep(2)
 
                     self.save_seen_items()
 
@@ -540,59 +564,7 @@ class VintedSnipebot:
                     continue
 
                 if all_new_items:
-                    print(f"\n📤 Sende {len(all_new_items)} neue(s) Angebot(e) an Telegram...")
-
-                    if is_first_run:
-                        cat_counts = {}
-                        for item in all_new_items:
-                            cat = item.get("category", "unbekannt")
-                            cat_counts[cat] = cat_counts.get(cat, 0) + 1
-                        lines = [f"🚀 <b>Bot gestartet!</b> {len(all_new_items)} Items gefunden.\n"]
-                        lines.append("<b>Nach Kategorien:</b>")
-                        for cat, count in sorted(cat_counts.items(), key=lambda x: -x[1]):
-                            emoji = CAT_EMOJIS.get(cat, "📦")
-                            lines.append(f"  {emoji} {cat.replace('_', ' ').title()}: {count}")
-                        lines.append(f"\n⏰ {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
-                        self.send_telegram_text("\n".join(lines))
-                        time.sleep(3)
-
-                    photo_count = 0
-                    fail_count = 0
-                    for i, item in enumerate(all_new_items):
-                        if self._shutdown:
-                            print(f"   🛑 Shutdown — breche Foto-Versand ab")
-                            break
-                        image_url = item.get("image_url", "")
-                        if image_url:
-                            caption = self.format_item_caption(item)
-                            print(f"   📸 [{i+1}/{len(all_new_items)}] {item.get('brand', '?')} — {item.get('price', '?')}€")
-                            result = self.send_telegram_photo(image_url, caption)
-                            if result == "ok":
-                                photo_count += 1
-                                time.sleep(random.uniform(5.5, 6.5))
-                            elif result == "rate_limit":
-                                print(f"   ⏳ Rate-limit — warte 30s und versuche weiter...")
-                                time.sleep(30)
-                                result2 = self.send_telegram_photo(image_url, caption)
-                                if result2 == "ok":
-                                    photo_count += 1
-                                    time.sleep(random.uniform(3, 4))
-                                else:
-                                    fail_count += 1
-                                    if fail_count >= 3:
-                                        print(f"   ⛔ 3x fehlgeschlagen — stoppe Foto-Versand")
-                                        break
-                                    time.sleep(5)
-                            else:
-                                fail_count += 1
-                                if fail_count >= 3:
-                                    print(f"   ⛔ 3x fehlgeschlagen — stoppe Foto-Versand")
-                                    break
-                                time.sleep(2)
-                        else:
-                            print(f"   ⚠️ Kein Bild: {item.get('title', '?')[:40]}")
-
-                    print(f"✅ Fertig! {photo_count}/{len(all_new_items)} Fotos gesendet!")
+                    print(f"\n📤 Fertig! {photo_count}/{len(all_new_items)} Fotos gesendet!")
                     is_first_run = False
                 else:
                     print("\n📭 Keine neuen Angebote.")
