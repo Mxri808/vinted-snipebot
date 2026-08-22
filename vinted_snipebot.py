@@ -422,9 +422,9 @@ class VintedSnipebot:
         return "\n".join(l for l in lines if l)
 
     def scrape_category(self, category, catalog_ids):
-        """Scrape one category, 2 pages per sub-cat, local brand filter. Returns (sent, blocked, photos)."""
+        """Scrape one category, 2 pages per sub-cat, local brand filter. Returns (sent, blocked)."""
         max_price = CAT_MAX_PRICES.get(category, 50)
-        photos = []
+        sent = 0
 
         for catalog_id in catalog_ids:
             if self._shutdown:
@@ -434,7 +434,7 @@ class VintedSnipebot:
                 page_items = self.scrape_catalog_page(catalog_id, page, max_price)
 
                 if page_items is None:
-                    return 0, True, photos
+                    return sent, True
 
                 if not page_items:
                     break
@@ -457,14 +457,19 @@ class VintedSnipebot:
                                 )
                                 self.mark_as_seen(item_id)
                                 self.save_seen_items()
-                                if item.get("image_url"):
-                                    photos.append(item)
+                                image_url = item.get("image_url", "")
+                                if image_url:
+                                    caption = self.format_item_caption(item)
+                                    result = self.send_telegram_photo(image_url, caption)
+                                    if result == "ok":
+                                        sent += 1
+                                    time.sleep(random.uniform(2.0, 2.5))
 
                 time.sleep(random.uniform(2, 3))
 
             time.sleep(random.uniform(2, 3))
 
-        return 0, False, photos
+        return sent, False
 
     def run(self):
         print("=" * 60)
@@ -488,7 +493,6 @@ class VintedSnipebot:
 
                 total_sent = 0
                 blocked = False
-                pending_photos = []
 
                 cats = list(CATALOG_IDS.items())
                 random.shuffle(cats)
@@ -500,8 +504,8 @@ class VintedSnipebot:
                     max_price = CAT_MAX_PRICES.get(category, 50)
                     print(f"\n\U0001f4c2 {category} ({len(catalog_ids)} Sub-Kats, max {max_price}\u20ac)")
 
-                    cat_sent, was_blocked, cat_photos = self.scrape_category(category, catalog_ids)
-                    pending_photos.extend(cat_photos)
+                    cat_sent, was_blocked = self.scrape_category(category, catalog_ids)
+                    total_sent += cat_sent
 
                     if was_blocked:
                         blocked = True
@@ -517,24 +521,8 @@ class VintedSnipebot:
                     time.sleep(wait)
                     continue
 
-                if pending_photos:
-                    print(f"\n\U0001f4e4 Sende {len(pending_photos)} Fotos...")
-
-                    def send_one(photo):
-                        if self._shutdown:
-                            return 0
-                        caption = self.format_item_caption(photo)
-                        result = self.send_telegram_photo(photo.get("image_url", ""), caption)
-                        if result == "ok":
-                            return 1
-                        return 0
-
-                    with ThreadPoolExecutor(max_workers=3) as executor:
-                        futures = [executor.submit(send_one, p) for p in pending_photos]
-                        for future in as_completed(futures):
-                            total_sent += future.result()
-
-                    print(f"\n\U0001f4e6 Fertig! {total_sent} Fotos gesendet!")
+                if total_sent > 0:
+                    print(f"\n\U0001f4e4 Fertig! {total_sent} Fotos gesendet!")
                     self.send_telegram_text(f"\u2705 Scan fertig \u2014 {total_sent} Fotos gesendet")
                 else:
                     print("\n\U0001f4ed Keine neuen Angebote.")
