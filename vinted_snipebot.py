@@ -319,9 +319,9 @@ class VintedSnipebot:
             return []
 
     def scrape_category(self, category, catalog_ids):
-        """Scrape a category. Returns (items, blocked)."""
+        """Scrape a category. Sends photos immediately. Returns (count, blocked)."""
         max_price = CAT_MAX_PRICES.get(category, 50)
-        all_items = []
+        sent = 0
 
         for catalog_id in catalog_ids:
             if self._shutdown:
@@ -332,17 +332,43 @@ class VintedSnipebot:
                     catalog_id, page, max_price
                 )
                 if page_items is None:
-                    return all_items, True
+                    return sent, True
                 if not page_items:
                     break
                 for item in page_items:
+                    if self._shutdown:
+                        break
                     if self._filter_item(item, category):
                         matched = self.match_brand(item["brand"])
                         if matched:
-                            item["brand"] = matched
-                            item["category"] = category
-                            item["cat_max_price"] = max_price
-                            all_items.append(item)
+                            item_id = item.get("id", "")
+                            if self.is_new_item(item_id):
+                                item["brand"] = matched
+                                item["category"] = category
+                                item["cat_max_price"] = max_price
+                                print(
+                                    f"   🆕 {matched} | "
+                                    f"{item.get('size_str', '?')} | "
+                                    f"{item.get('price', '?')}€ | "
+                                    f"{item.get('title', '?')[:40]}"
+                                )
+                                self.mark_as_seen(item_id)
+                                self.save_seen_items()
+                                image_url = item.get("image_url", "")
+                                if image_url:
+                                    caption = self.format_item_caption(item)
+                                    result = self.send_telegram_photo(image_url, caption)
+                                    if result == "ok":
+                                        sent += 1
+                                        time.sleep(random.uniform(2.5, 3.5))
+                                    elif result == "rate_limit":
+                                        print(f"   ⏳ Rate-limit — warte 25s...")
+                                        time.sleep(25)
+                                        result2 = self.send_telegram_photo(image_url, caption)
+                                        if result2 == "ok":
+                                            sent += 1
+                                            time.sleep(random.uniform(2.5, 3.5))
+                                    time.sleep(1)
                 if len(page_items) < 96:
                     break
                 page += 1
@@ -350,7 +376,7 @@ class VintedSnipebot:
 
             time.sleep(random.uniform(6, 10))
 
-        return all_items, False
+        return sent, False
 
     def _filter_item(self, item, category):
         """Return True if item passes all local filters (kids, exclude, size)."""
@@ -491,18 +517,14 @@ class VintedSnipebot:
             print(f"   {cat}: max. {price}€")
         print("=" * 60)
 
-        is_first_run = len(self.seen_items) == 0
-
         while True:
             try:
                 print(f"\n🔍 Suche: {datetime.now().strftime('%H:%M:%S')}")
                 print("-" * 40)
 
                 self.refresh_session()
-                all_new_items = []
                 blocked = False
                 photo_count = 0
-                fail_count = 0
 
                 cats = list(CATALOG_IDS.items())
                 random.shuffle(cats)
@@ -514,47 +536,12 @@ class VintedSnipebot:
                     max_price = CAT_MAX_PRICES.get(category, 50)
                     print(f"\n📂 {category} ({len(catalog_ids)} Sub-Kats, max {max_price}€)...")
 
-                    items, was_blocked = self.scrape_category(category, catalog_ids)
+                    cat_sent, was_blocked = self.scrape_category(category, catalog_ids)
+                    photo_count += cat_sent
 
                     if was_blocked:
                         print(f"   ⚠️  Cloudflare Block — übrige Kategorien übersprungen")
                         blocked = True
-
-                    for item in items:
-                        item_id = item.get("id", "")
-                        if self.is_new_item(item_id):
-                            print(
-                                f"   🆕 {item.get('brand', '?')} | "
-                                f"{item.get('size_str', '?')} | "
-                                f"{item.get('price', '?')}€ | "
-                                f"{item.get('title', '?')[:40]}"
-                            )
-                            self.mark_as_seen(item_id)
-                            all_new_items.append(item)
-                            image_url = item.get("image_url", "")
-                            if image_url:
-                                caption = self.format_item_caption(item)
-                                result = self.send_telegram_photo(image_url, caption)
-                                if result == "ok":
-                                    photo_count += 1
-                                    time.sleep(random.uniform(2.5, 3.5))
-                                elif result == "rate_limit":
-                                    print(f"   ⏳ Rate-limit — warte 25s...")
-                                    time.sleep(25)
-                                    result2 = self.send_telegram_photo(image_url, caption)
-                                    if result2 == "ok":
-                                        photo_count += 1
-                                        time.sleep(random.uniform(2.5, 3.5))
-                                    else:
-                                        fail_count += 1
-                                else:
-                                    fail_count += 1
-                                    if fail_count >= 5:
-                                        print(f"   ⛔ 5x fehlgeschlagen — stoppe Foto-Versand")
-                                        break
-                                    time.sleep(2)
-
-                    self.save_seen_items()
 
                 if blocked:
                     wait = random.randint(1800, 3600)
@@ -564,13 +551,9 @@ class VintedSnipebot:
                     time.sleep(wait)
                     continue
 
-                if all_new_items:
-                    print(f"\n📤 Fertig! {photo_count}/{len(all_new_items)} Fotos gesendet!")
-                    status = (
-                        f"✅ Scan fertig — {photo_count}/{len(all_new_items)} Fotos gesendet"
-                    )
-                    self.send_telegram_text(status)
-                    is_first_run = False
+                if photo_count > 0:
+                    print(f"\n📤 Fertig! {photo_count} Fotos gesendet!")
+                    self.send_telegram_text(f"✅ Scan fertig — {photo_count} Fotos gesendet")
                 else:
                     print("\n📭 Keine neuen Angebote.")
 
