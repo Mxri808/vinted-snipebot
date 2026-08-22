@@ -97,7 +97,7 @@ class VintedSnipebot:
         self.seen_items = self.load_seen_items()
         self.telegram_bot_token = self.config.get("telegram_bot_token", "")
         self.telegram_chat_id = self.config.get("telegram_chat_id", "")
-        self.session = cffi_requests.Session(impersonate="chrome131")
+        self.session = cffi_requests.Session(impersonate="chrome131", proxy="socks5h://127.0.0.1:9050")
         self.session.headers.update({
             "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
             "DNT": "1",
