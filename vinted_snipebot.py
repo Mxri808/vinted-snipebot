@@ -9,7 +9,8 @@ import random
 import re
 import signal
 import time
-import requests
+from curl_cffi import requests as cffi_requests
+import requests as std_requests
 from datetime import datetime
 from pathlib import Path
 
@@ -96,15 +97,10 @@ class VintedSnipebot:
         self.seen_items = self.load_seen_items()
         self.telegram_bot_token = self.config.get("telegram_bot_token", "")
         self.telegram_chat_id = self.config.get("telegram_chat_id", "")
-        self.session = requests.Session()
+        self.session = cffi_requests.Session(impersonate="chrome131")
         self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
             "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Accept-Encoding": "gzip, deflate, br",
             "DNT": "1",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
             "Sec-Fetch-Dest": "document",
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "none",
@@ -316,7 +312,7 @@ class VintedSnipebot:
 
             return items
 
-        except requests.exceptions.RequestException:
+        except Exception:
             return []
 
     def _filter_item(self, item, category):
@@ -351,21 +347,21 @@ class VintedSnipebot:
             return "error"
 
         try:
-            img_resp = requests.get(
+            img_resp = std_requests.get(
                 image_url,
                 headers={"User-Agent": "Mozilla/5.0", "Referer": "https://www.vinted.de/"},
                 timeout=15,
             )
             if img_resp.status_code != 200 or len(img_resp.content) < 100:
                 return "error"
-        except requests.exceptions.RequestException:
+        except Exception:
             return "error"
 
         url = f"https://api.telegram.org/bot{self.telegram_bot_token}/sendPhoto"
 
         for attempt in range(3):
             try:
-                response = requests.post(
+                response = std_requests.post(
                     url,
                     data={"chat_id": self.telegram_chat_id, "caption": caption, "parse_mode": "HTML"},
                     files={"photo": ("img.webp", img_resp.content, "image/webp")},
@@ -399,7 +395,7 @@ class VintedSnipebot:
             "disable_web_page_preview": True,
         }
         try:
-            response = requests.post(url, json=payload, timeout=10)
+            response = std_requests.post(url, json=payload, timeout=10)
             return response.status_code == 200
         except Exception:
             return False
