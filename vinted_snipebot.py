@@ -345,6 +345,7 @@ class VintedSnipebot:
 
     def send_telegram_photo(self, image_url, caption):
         if not self.telegram_bot_token or not self.telegram_chat_id or not image_url:
+            print(f"      \u274c Kein Token/ChatID/URL")
             return "error"
 
         try:
@@ -353,9 +354,17 @@ class VintedSnipebot:
                 headers={"Referer": "https://www.vinted.de/"},
                 timeout=15,
             )
-            if img_resp.status_code != 200 or len(img_resp.content) < 100:
+            ct = img_resp.headers.get("content-type", "")
+            size = len(img_resp.content)
+            print(f"      \U0001f4f7 Download: {img_resp.status_code} | {size}B | {ct[:30]}")
+            if img_resp.status_code != 200 or size < 100:
+                print(f"      \u274c Bild-Download fehlgeschlagen")
                 return "error"
-        except Exception:
+            if "html" in ct.lower() or "text" in ct.lower():
+                print(f"      \u274c Kein Bild sondern {ct}")
+                return "error"
+        except Exception as e:
+            print(f"      \u274c Download-Fehler: {e}")
             return "error"
 
         url = f"https://api.telegram.org/bot{self.telegram_bot_token}/sendPhoto"
@@ -369,6 +378,7 @@ class VintedSnipebot:
                     timeout=15,
                 )
                 if response.status_code == 200:
+                    print(f"      \u2705 Telegram OK")
                     return "ok"
                 elif response.status_code == 429:
                     retry_after = 35
@@ -379,8 +389,10 @@ class VintedSnipebot:
                     print(f"      \u23f3 Rate-limit - warte {retry_after}s...")
                     time.sleep(retry_after)
                 else:
+                    print(f"      \u274c Telegram {response.status_code}: {response.text[:200]}")
                     return "error"
-            except requests.exceptions.RequestException:
+            except Exception as e:
+                print(f"      \u274c Telegram Fehler: {e}")
                 time.sleep(2)
 
         return "error"
