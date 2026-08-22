@@ -12,6 +12,7 @@ import time
 from curl_cffi import requests as cffi_requests
 import requests as std_requests
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 CONFIG_FILE = Path(__file__).parent / "config.json"
@@ -248,7 +249,7 @@ class VintedSnipebot:
             "condition": condition,
         }
 
-    def scrape_catalog_page(self, catalog_id, page, max_price, brand_ids_batch=None):
+    def scrape_catalog_page(self, catalog_id, page, max_price):
         try:
             params = {
                 "catalog[]": catalog_id,
@@ -421,51 +422,49 @@ class VintedSnipebot:
         return "\n".join(l for l in lines if l)
 
     def scrape_category(self, category, catalog_ids):
-        """Scrape one category, 1 page per sub-cat, local brand filter. Returns (sent, blocked)."""
+        """Scrape one category, 2 pages per sub-cat, local brand filter. Returns (sent, blocked, photos)."""
         max_price = CAT_MAX_PRICES.get(category, 50)
-        sent = 0
+        photos = []
 
         for catalog_id in catalog_ids:
             if self._shutdown:
                 break
 
-            page_items = self.scrape_catalog_page(catalog_id, 1, max_price)
+            for page in [1, 2]:
+                page_items = self.scrape_catalog_page(catalog_id, page, max_price)
 
-            if page_items is None:
-                return sent, True
+                if page_items is None:
+                    return 0, True, photos
 
-            if not page_items:
-                continue
-
-            for item in page_items:
-                if self._shutdown:
+                if not page_items:
                     break
-                if self._filter_item(item, category):
-                    matched = self.match_brand(item["brand"])
-                    if matched:
-                        item_id = item.get("id", "")
-                        if self.is_new_item(item_id):
-                            item["brand"] = matched
-                            item["category"] = category
-                            print(
-                                f"   \U0001f195 {matched} | "
-                                f"{item.get('size_str', '?')} | "
-                                f"{item.get('price', '?')}\u20ac | "
-                                f"{item.get('title', '?')[:40]}"
-                            )
-                            self.mark_as_seen(item_id)
-                            self.save_seen_items()
-                            image_url = item.get("image_url", "")
-                            if image_url:
-                                caption = self.format_item_caption(item)
-                                result = self.send_telegram_photo(image_url, caption)
-                                if result == "ok":
-                                    sent += 1
-                                time.sleep(random.uniform(2.0, 2.5))
 
-            time.sleep(random.uniform(5, 8))
+                for item in page_items:
+                    if self._shutdown:
+                        break
+                    if self._filter_item(item, category):
+                        matched = self.match_brand(item["brand"])
+                        if matched:
+                            item_id = item.get("id", "")
+                            if self.is_new_item(item_id):
+                                item["brand"] = matched
+                                item["category"] = category
+                                print(
+                                    f"   \U0001f195 {matched} | "
+                                    f"{item.get('size_str', '?')} | "
+                                    f"{item.get('price', '?')}\u20ac | "
+                                    f"{item.get('title', '?')[:40]}"
+                                )
+                                self.mark_as_seen(item_id)
+                                self.save_seen_items()
+                                if item.get("image_url"):
+                                    photos.append(item)
 
-        return sent, False
+                time.sleep(random.uniform(2, 3))
+
+            time.sleep(random.uniform(2, 3))
+
+        return 0, False, photos
 
     def run(self):
         print("=" * 60)
@@ -489,6 +488,7 @@ class VintedSnipebot:
 
                 total_sent = 0
                 blocked = False
+                pending_photos = []
 
                 cats = list(CATALOG_IDS.items())
                 random.shuffle(cats)
@@ -500,14 +500,14 @@ class VintedSnipebot:
                     max_price = CAT_MAX_PRICES.get(category, 50)
                     print(f"\n\U0001f4c2 {category} ({len(catalog_ids)} Sub-Kats, max {max_price}\u20ac)")
 
-                    cat_sent, was_blocked = self.scrape_category(category, catalog_ids)
-                    total_sent += cat_sent
+                    cat_sent, was_blocked, cat_photos = self.scrape_category(category, catalog_ids)
+                    pending_photos.extend(cat_photos)
 
                     if was_blocked:
                         blocked = True
                         break
 
-                    time.sleep(random.uniform(5, 8))
+                    time.sleep(random.uniform(2, 3))
 
                 if blocked:
                     wait = random.randint(1800, 3600)
@@ -517,8 +517,24 @@ class VintedSnipebot:
                     time.sleep(wait)
                     continue
 
-                if total_sent > 0:
-                    print(f"\n\U0001f4e4 Fertig! {total_sent} Fotos gesendet!")
+                if pending_photos:
+                    print(f"\n\U0001f4e4 Sende {len(pending_photos)} Fotos...")
+
+                    def send_one(photo):
+                        if self._shutdown:
+                            return 0
+                        caption = self.format_item_caption(photo)
+                        result = self.send_telegram_photo(photo.get("image_url", ""), caption)
+                        if result == "ok":
+                            return 1
+                        return 0
+
+                    with ThreadPoolExecutor(max_workers=3) as executor:
+                        futures = [executor.submit(send_one, p) for p in pending_photos]
+                        for future in as_completed(futures):
+                            total_sent += future.result()
+
+                    print(f"\n\U0001f4e6 Fertig! {total_sent} Fotos gesendet!")
                     self.send_telegram_text(f"\u2705 Scan fertig \u2014 {total_sent} Fotos gesendet")
                 else:
                     print("\n\U0001f4ed Keine neuen Angebote.")
