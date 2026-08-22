@@ -176,10 +176,6 @@ class VintedSnipebot:
             if brand_id is not None:
                 self._brand_ids[normalized] = brand_id
 
-    def _get_brand_id_batches(self, batch_size=8):
-        all_ids = [str(v) for v in self._brand_ids.values() if v is not None]
-        return [all_ids[i:i + batch_size] for i in range(0, len(all_ids), batch_size)]
-
     def refresh_session(self):
         try:
             r = self.session.get("https://www.vinted.de", timeout=15, headers={
@@ -428,8 +424,8 @@ class VintedSnipebot:
         ]
         return "\n".join(l for l in lines if l)
 
-    def scrape_category_with_batch(self, category, catalog_ids, brand_ids_batch):
-        """Scrape one category with one brand_ids batch. Returns (sent, blocked)."""
+    def scrape_category(self, category, catalog_ids):
+        """Scrape one category, 1 page per sub-cat, local brand filter. Returns (sent, blocked)."""
         max_price = CAT_MAX_PRICES.get(category, 50)
         sent = 0
 
@@ -437,9 +433,7 @@ class VintedSnipebot:
             if self._shutdown:
                 break
 
-            page_items = self.scrape_catalog_page(
-                catalog_id, 1, max_price, brand_ids_batch=brand_ids_batch
-            )
+            page_items = self.scrape_catalog_page(catalog_id, 1, max_price)
 
             if page_items is None:
                 return sent, True
@@ -473,7 +467,7 @@ class VintedSnipebot:
                                     sent += 1
                                 time.sleep(random.uniform(2.0, 2.5))
 
-            time.sleep(random.uniform(2, 3))
+            time.sleep(random.uniform(5, 8))
 
         return sent, False
 
@@ -482,9 +476,7 @@ class VintedSnipebot:
         print("\U0001f680 VINTED SNIPEBOT GESTARTET")
         print("=" * 60)
         print(f"\u23f1\ufe0f  Intervall: {self.config.get('check_interval', 180)}s")
-        print(f"\U0001f3f7\ufe0f  Marken: {len(self._brand_names)} ({len(self._brand_ids)} mit ID)")
-        batches = self._get_brand_id_batches()
-        print(f"\U0001f4e6 Brand-Batches: {len(batches)} (je {len(batches[0]) if batches else 0} IDs)")
+        print(f"\U0001f3f7\ufe0f  Marken: {len(self._brand_names)}")
         print(f"\U0001f4cf Groessenfilter: aktiviert")
         print(f"\U0001f4c2 Kategorien + Max-Preise:")
         for cat, price in CAT_MAX_PRICES.items():
@@ -502,7 +494,6 @@ class VintedSnipebot:
                 total_sent = 0
                 blocked = False
 
-                brand_batches = self._get_brand_id_batches()
                 cats = list(CATALOG_IDS.items())
                 random.shuffle(cats)
 
@@ -513,23 +504,14 @@ class VintedSnipebot:
                     max_price = CAT_MAX_PRICES.get(category, 50)
                     print(f"\n\U0001f4c2 {category} ({len(catalog_ids)} Sub-Kats, max {max_price}\u20ac)")
 
-                    for batch_idx, batch in enumerate(brand_batches):
-                        if blocked or self._shutdown:
-                            break
+                    cat_sent, was_blocked = self.scrape_category(category, catalog_ids)
+                    total_sent += cat_sent
 
-                        cat_sent, was_blocked = self.scrape_category_with_batch(
-                            category, catalog_ids, batch
-                        )
-                        total_sent += cat_sent
+                    if was_blocked:
+                        blocked = True
+                        break
 
-                        if was_blocked:
-                            blocked = True
-                            break
-
-                        if batch_idx < len(brand_batches) - 1:
-                            time.sleep(random.uniform(2, 3))
-
-                    time.sleep(random.uniform(3, 5))
+                    time.sleep(random.uniform(5, 8))
 
                 if blocked:
                     wait = random.randint(1800, 3600)
