@@ -334,7 +334,6 @@ class VintedSnipebot:
         """Scrape a category. Sends photos immediately. Returns (count, blocked)."""
         max_price = CAT_MAX_PRICES.get(category, 50)
         sent = 0
-        brand_ids_list = [str(v) for v in self._brand_ids.values() if v is not None]
 
         for catalog_id in catalog_ids:
             if self._shutdown:
@@ -342,8 +341,7 @@ class VintedSnipebot:
             page = 1
             while page <= 1:
                 page_items = self.scrape_catalog_page(
-                    catalog_id, page, max_price,
-                    brand_ids_to_use=brand_ids_list
+                    catalog_id, page, max_price
                 )
                 if page_items is None:
                     return sent, True
