@@ -1,29 +1,24 @@
 #!/usr/bin/env python3
-"""Diagnose 3: Kontext der echten favourite_count-Daten."""
+"""Diagnose 4: Herren-Katalog-IDs von vinted.de/herren ziehen."""
 import re
+
+from curl_cffi import requests
 
 
 def main():
-    html = open("/tmp/cat.html").read()
-    positions = [m.start() for m in re.finditer(r"favourite_count", html)]
-    print("Anzahl:", len(positions))
+    s = requests.Session(
+        impersonate="chrome131",
+        proxy="socks5h://diag2:x@127.0.0.1:9050",
+    )
+    r = s.get("https://www.vinted.de/herren", timeout=60)
+    print("status:", r.status_code, "| groesse:", len(r.text))
+    open("/tmp/herren.html", "w").write(r.text)
 
-    for p in positions[3:6]:
-        print(f"\n--- Position {p} ---")
-        print(repr(html[p - 500:p + 300]))
-
-    # Versuche id->fav Paarungen in verschiedenen Formaten
-    tests = [
-        (r'"id":(\d{7,12}).{0,2000}?"favourite_count":(\d+)', "id dann fav"),
-        (r'"favourite_count":(\d+).{0,2000}?"id":(\d{7,12})', "fav dann id"),
-        (r'\\?"id\\?":\s*\\?(\d{7,12})\\?.{0,2000}?\\?"favourite_count\\?":\s*\\?(\d+)', "escaped"),
-    ]
-    for pat, label in tests:
-        m = re.findall(pat, html)
-        print(f"\n{label}: {len(m)} Treffer")
-        if m:
-            print(m[:4])
-            break
+    # Katalog-Links: /catalog/ID-slug
+    cats = sorted(set(re.findall(r"/catalog/(\d{2,6})-([a-z0-9-]+)", r.text)))
+    print(f"\n{len(cats)} Kataloge gefunden:\n")
+    for cid, slug in cats:
+        print(f"{cid:>6}  {slug}")
 
 
 if __name__ == "__main__":
