@@ -20,18 +20,21 @@ CONFIG_FILE = Path(__file__).parent / "config.json"
 SEEN_ITEMS_FILE = Path(__file__).parent / "seen_items.json"
 
 CATALOG_IDS = {
-    "taschen": ["156", "158", "552", "160"],
-    "schuhe": ["2632", "543", "215", "1233"],
-    "sonnenbrillen": ["26", "98"],
+    "tops_tshirts": ["12"],
+    "hosen_jeans": ["9", "183"],
+    "schuhe": ["2632", "543", "1049", "2630", "215", "1242", "1452", "1233"],
 }
 
 CAT_EMOJIS = {
-    "taschen": "\U0001f45c", "schuhe": "\U0001f45f",
-    "sonnenbrillen": "\U0001f576\ufe0f",
+    "schuhe": "\U0001f45f",
+    "hosen_jeans": "\U0001f456",
+    "tops_tshirts": "\U0001f455",
 }
 
 CAT_MAX_PRICES = {
-    "taschen": 45, "schuhe": 50, "sonnenbrillen": 25,
+    "schuhe": 50,
+    "hosen_jeans": 30,
+    "tops_tshirts": 15,
 }
 
 BABY_KIDS_BLACKLIST = [
@@ -154,9 +157,9 @@ class VintedSnipebot:
         sizes_config = self.config.get("sizes", {})
         cache = {}
         size_map = {
-            "taschen": [],
             "schuhe": ["damen_schuhe", "herren_schuhe"],
-            "sonnenbrillen": [],
+            "hosen_jeans": ["damen_jeans", "damen_kleidung", "herren_jeans", "herren_kleidung"],
+            "tops_tshirts": ["damen_kleidung", "herren_kleidung", "herren_hemden"],
         }
         for category, size_keys in size_map.items():
             allowed = set()
