@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 Vinted Snipebot v4
-- 4 Worker parallel mit separaten Tor-Circuits
+- 6 Worker parallel mit separaten Tor-Circuits
+- Laender: DE, AT, FR, BE, NL, IT
 - Zwei Limits: Kategorie UND Marken-Tier (das niedrigere gewinnt)
-- Laender-Rotation: de + fr/it/nl im Wechsel
 - Telegram laedt Fotos direkt von Vinted
 """
 
@@ -24,14 +24,17 @@ from curl_cffi import requests as cffi_requests
 BASE = Path(__file__).parent
 CONFIG_FILE = BASE / "config.json"
 SEEN_FILE = BASE / "seen_items.json"
-NUM_WORKERS = 4
+NUM_WORKERS = 6
 CYCLE_SLEEP = 10
 
-MAIN_DOMAIN = "www.vinted.de"
-# Nur Deutschland: Alles was nach DE versandt wird, erscheint hier.
-# Fremd-Laender-Domains enthalten viele Items, die man von DE nicht kaufen kann.
+# Laender-Domains (Sprache im Label variiert -> Multi-Pattern-Parsing)
 SCAN_DOMAINS = [
-    ("www.vinted.de", "de"),
+    "www.vinted.de",
+    "www.vinted.at",
+    "www.vinted.fr",
+    "www.vinted.be",
+    "www.vinted.nl",
+    "www.vinted.it",
 ]
 
 CATEGORIES = {
@@ -137,21 +140,15 @@ BAD_WORDS = [
     "staubbeutel nur", "dust bag only", "dustbag only",
 ]
 
-# Sprach-Patterns pro Domain (Marke / Groesse / Zustand im Overlay-Label)
-LANG_PATTERNS = {
-    "de": {"brand": r"Marke\s*:\s*([^,]+)", "size": r"Gr(?:o|\u00f6)\s*e\s*:\s*([^,]+)", "cond": r"Zustand\s*:\s*([^,]+)"},
-    "fr": {"brand": r"Marque\s*:\s*([^,]+)", "size": r"Taille\s*:\s*([^,]+)", "cond": r"\u00c9tat\s*:\s*([^,]+)"},
-    "nl": {"brand": r"Merk\s*:\s*([^,]+)", "size": r"Maat\s*:\s*([^,]+)", "cond": r"Staat\s*:\s*([^,]+)"},
-    "it": {"brand": r"Marca\s*:\s*([^,]+)", "size": r"Taglia\s*:\s*([^,]+)", "cond": r"Condizion[ei]\s*:\s*([^,]+)"},
-    "es": {"brand": r"Marca\s*:\s*([^,]+)", "size": r"Talla\s*:\s*([^,]+)", "cond": r"(?:Estado(?:\s+del\s+art\u00edculo)?)\s*:\s*([^,]+)"},
-    "pt": {"brand": r"Marca\s*:\s*([^,]+)", "size": r"Tamanho\s*:\s*([^,]+)", "cond": r"(?:Estado(?:\s+do\s+artigo)?)\s*:\s*([^,]+)"},
-    "pl": {"brand": r"Marka\s*:\s*([^,]+)", "size": r"Rozmiar\s*:\s*([^,]+)", "cond": r"Stan\s*:\s*([^,]+)"},
-    "cs": {"brand": r"Zna\u010dka\s*:\s*([^,]+)", "size": r"Velikost\s*:\s*([^,]+)", "cond": r"Stav(?:\s+zbo\u017e\u00ed)?\s*:\s*([^,]+)"},
-    "sk": {"brand": r"Zna\u010dka\s*:\s*([^,]+)", "size": r"Ve\u013ekos\u0165\s*:\s*([^,]+)", "cond": r"Stav\s*:\s*([^,]+)"},
-    "hu": {"brand": r"M\u00e1rka\s*:\s*([^,]+)", "size": r"M\u00e9ret\s*:\s*([^,]+)", "cond": r"\u00c1llapot\s*:\s*([^,]+)"},
-    "ro": {"brand": r"Marc\u0103\s*:\s*([^,]+)", "size": r"M\u0103rime(?:a)?\s*:\s*([^,]+)", "cond": r"Stare(?:\s+produsului)?\s*:\s*([^,]+)"},
-    "lt": {"brand": r"Prek\u0117s \u017eenklas\s*:\s*([^,]+)", "size": r"Dydis\s*:\s*([^,]+)", "cond": r"B\u016bsena\s*:\s*([^,]+)"},
-}
+# Multi-Sprach-Patterns (de/fr/nl/it/es gleichzeitig)
+BRAND_RE = re.compile(r"(?:Marke|Marque|Marca|Merk)\s*:\s*([^,]+)")
+SIZE_RE = re.compile(
+    r"(?:Gr\u00f6\u00dfe|Gr\u00f6sse|Groesse|Gr\.\s*|Size|Taille|Taglia|Talla|Maat)\s*\.?\s*:\s*([^,]+)"
+)
+COND_RE = re.compile(
+    r"(?:Zustand|\u00c9tat|Etat|Staat|Condizioni?|Estado)\s*:\s*([^,]+)"
+)
+PRICE_RE = re.compile(r"(\d+[.,]\d{2})")
 
 
 def norm(s):
@@ -164,11 +161,14 @@ class Worker:
     def __init__(self, wid):
         self.wid = wid
         self.session = None
+        # Eigener Username pro Worker -> Tor isoliert Circuits automatisch
         self.proxy = f"socks5h://worker{wid}:x@127.0.0.1:9050"
 
     def start(self):
         s = cffi_requests.Session(impersonate="chrome131", proxy=self.proxy)
-        s.headers.update({"Accept-Language": "de-DE,de;q=0.9,en;q=0.8,fr;q=0.7,it;q=0.6,nl;q=0.5"})
+        s.headers.update({
+            "Accept-Language": "de-DE,de;q=0.9,fr;q=0.8,nl;q=0.7,it;q=0.6,en;q=0.5"
+        })
         self.session = s
 
     def fetch(self, url, referer):
@@ -189,13 +189,7 @@ class Worker:
         return None
 
 
-def parse_page(html_text, lang):
-    pats = LANG_PATTERNS.get(lang, LANG_PATTERNS["de"])
-    brand_re = re.compile(pats["brand"])
-    size_re = re.compile(pats["size"])
-    cond_re = re.compile(pats["cond"])
-    price_re = re.compile(r"(\d+[.,]\d{2})\s*(?:\u20ac|z\u0142)")
-
+def parse_page(html_text):
     items = []
     seen_ids = set()
     for m in re.finditer(
@@ -206,10 +200,15 @@ def parse_page(html_text, lang):
             continue
         seen_ids.add(iid)
         label = html_mod.unescape(m.group(2))
-        brand_m = brand_re.search(label)
-        size_m = size_re.search(label)
-        cond_m = cond_re.search(label)
-        pm = price_re.search(label)
+        brand_m = BRAND_RE.search(label)
+        size_m = SIZE_RE.search(label)
+        cond_m = COND_RE.search(label)
+        # Preis = letzte Zahl im Label (funktioniert fuer alle Waehrungsformate)
+        prices = PRICE_RE.findall(label)
+        try:
+            price = float(prices[-1].replace(",", ".")) if prices else 0.0
+        except ValueError:
+            price = 0.0
 
         img_m = re.search(
             rf'product-item-id-{iid}--image[^"]*"[^>]*>.*?<img src="(https://images[^"]+)"',
@@ -221,11 +220,6 @@ def parse_page(html_text, lang):
         fm = re.search(r'"favourite_count":(\d+)', window)
         if fm:
             favs = int(fm.group(1))
-
-        try:
-            price = float(pm.group(1).replace(",", ".")) if pm else 0.0
-        except ValueError:
-            price = 0.0
 
         items.append({
             "id": iid,
@@ -247,7 +241,7 @@ class Bot:
         self.token = self.cfg["telegram_bot_token"]
         self.chat_id = self.cfg["telegram_chat_id"]
         self.seen = self._load(SEEN_FILE, {})
-        # Marken-Limits: konfigurierte Marken -> Tier-Limit
+        # Marken-Limits: konfigurierte Marke -> Tier-Limit
         self.limits = {}
         default_tier = 40
         for name in self.cfg.get("brands", {}):
@@ -368,13 +362,13 @@ class Bot:
             sent = self.tg_send_message(caption)
         return sent
 
-    def scan_job(self, worker, cat, cid, cat_max, domain, lang):
+    def scan_job(self, worker, cat, cid, cat_max, domain):
         url = f"https://{domain}/catalog?catalog[]={cid}&price_to={cat_max}&order=newest_first"
         r = worker.fetch(url, referer=f"https://{domain}/")
         if r is None:
             return 0
         sent = 0
-        for item in parse_page(r.text, lang):
+        for item in parse_page(r.text):
             if self.shutdown:
                 break
             with self.lock:
@@ -391,7 +385,8 @@ class Bot:
     def run(self):
         print("=" * 50)
         print(f"VINTED SNIPEBOT v4 ({NUM_WORKERS} Worker)")
-        print(f"Limits: Kategorie + Marken-Tier (das niedrigere gilt)")
+        print(f"Laender: {', '.join(d.split('.')[1] for d in SCAN_DOMAINS)}")
+        print("Limits: Kategorie + Marken-Tier (das niedrigere gilt)")
         print("=" * 50)
         base_jobs = []
         for cat, info in CATEGORIES.items():
@@ -400,19 +395,20 @@ class Bot:
         cycle = 0
         while not self.shutdown:
             t0 = time.time()
-            alt_domain = ROTATE_DOMAINS[cycle % len(ROTATE_DOMAINS)]
-            alt_lang = alt_domain.split(".")[2]
-            jobs = [(cat, cid, mp, MAIN_DOMAIN, "de") for cat, cid, mp in base_jobs]
-            jobs += [(cat, cid, mp, alt_domain, alt_lang) for cat, cid, mp in base_jobs]
+            jobs = [
+                (cat, cid, mp, dom)
+                for dom in SCAN_DOMAINS
+                for cat, cid, mp in base_jobs
+            ]
             random.shuffle(jobs)
             print(f"\n=== Scan #{cycle} {datetime.now():%H:%M:%S} "
-                  f"(de + {alt_lang}, {len(jobs)} Jobs) ===")
+                  f"({len(jobs)} Jobs, {len(SCAN_DOMAINS)} Laender) ===")
             total = 0
             with ThreadPoolExecutor(max_workers=NUM_WORKERS) as ex:
                 futures = [
                     ex.submit(self.scan_job, self.workers[i % NUM_WORKERS],
-                              cat, cid, mp, dom, lang)
-                    for i, (cat, cid, mp, dom, lang) in enumerate(jobs)
+                              cat, cid, mp, dom)
+                    for i, (cat, cid, mp, dom) in enumerate(jobs)
                 ]
                 for f in as_completed(futures):
                     if self.shutdown:
