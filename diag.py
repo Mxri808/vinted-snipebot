@@ -6,16 +6,23 @@ from curl_cffi import requests
 
 
 def fetch():
-    s = requests.Session(
-        impersonate="chrome131",
-        proxy="socks5h://diag5:x@127.0.0.1:9050",
-    )
-    r = s.get(
-        "https://www.vinted.de/catalog?catalog[]=2632&order=newest_first",
-        timeout=90,
-    )
-    print("fetch status:", r.status_code, "| groesse:", len(r.text))
-    return r.text
+    for versuch in range(12):
+        s = requests.Session(
+            impersonate="chrome131",
+            proxy=f"socks5h://diag7-{versuch}:x@127.0.0.1:9050",
+        )
+        try:
+            r = s.get(
+                "https://www.vinted.de/catalog?catalog[]=2632&order=newest_first",
+                timeout=60,
+            )
+        except Exception as e:
+            print(f"  Versuch {versuch + 1}: Fehler {e}")
+            continue
+        print(f"  Versuch {versuch + 1}: status {r.status_code} ({len(r.text)})")
+        if r.status_code == 200 and len(r.text) > 500000:
+            return r.text
+    return None
 
 
 def main():
