@@ -39,29 +39,61 @@ SCAN_DOMAINS = [
     "www.vinted.it",
 ]
 
+# Kategorie-IDs nach Geschlecht gegliedert.
+# Aktiviert/deaktiviert wird über config.json -> "categories".
 CATEGORIES = {
     "schuhe": {
-        "ids": ["2632", "543", "1049", "2630", "215", "1242", "1452", "1233"],
+        "ids": {
+            "damen": ["2632", "543", "1049", "2630", "215"],
+            "herren": ["1242", "1452", "1233", "1238", "2656",
+                       "2969", "2968", "2970", "2659", "2657"],
+        },
         "max_price": 50,
     },
     "hosen_jeans": {
-        "ids": ["9", "183"],
+        "ids": {
+            "damen": ["9", "183"],
+            "herren": ["34", "257", "80"],
+        },
         "max_price": 30,
     },
     "oberteile": {
-        "ids": ["12"],
+        "ids": {
+            "damen": ["12"],
+            "herren": ["76", "79", "30"],
+        },
         "max_price": 15,
+    },
+    "jacken_maentel": {
+        "ids": {
+            "damen": ["16", "1205"],
+            "herren": ["1206"],
+        },
+        "max_price": 45,
     },
 }
 
 SIZE_KEYS = {
-    "schuhe": ["damen_schuhe", "herren_schuhe"],
-    "hosen_jeans": ["damen_jeans", "damen_kleidung", "herren_jeans", "herren_kleidung"],
-    "oberteile": ["damen_kleidung", "herren_kleidung"],
+    "schuhe": {
+        "damen": ["damen_schuhe"],
+        "herren": ["herren_schuhe"],
+    },
+    "hosen_jeans": {
+        "damen": ["damen_jeans", "damen_kleidung"],
+        "herren": ["herren_jeans", "herren_kleidung"],
+    },
+    "oberteile": {
+        "damen": ["damen_kleidung"],
+        "herren": ["herren_kleidung"],
+    },
+    "jacken_maentel": {
+        "damen": ["damen_kleidung"],
+        "herren": ["herren_kleidung"],
+    },
 }
 
 EMOJIS = {"schuhe": "\U0001f45f", "hosen_jeans": "\U0001f456", "oberteile": "\U0001f455",
-          "keyword": "\U0001f50e"}
+          "jacken_maentel": "\U0001f9e5", "keyword": "\U0001f50e"}
 
 # Marken-Tier Limits (normalisiert via norm()); Kollabs folgen Hauptmarke
 BRAND_TIERS = {
@@ -304,11 +336,13 @@ class Bot:
         print(f"Marken mit Tier-Limit: {len(self.limits)}")
         print(f"Keywords: {self.keywords}")
         self.sizes = {}
-        for cat, keys in SIZE_KEYS.items():
+        enabled_genders = {g for g, v in self.cfg.get("categories", {}).items() if v}
+        for cat, gender_keys in SIZE_KEYS.items():
             allowed = set()
-            for k in keys:
-                for s in self.cfg.get("sizes", {}).get(k, []):
-                    allowed.add(str(s).strip().lower())
+            for gender in enabled_genders:
+                for k in gender_keys.get(gender, []):
+                    for s in self.cfg.get("sizes", {}).get(k, []):
+                        allowed.add(str(s).strip().lower())
             if allowed:
                 self.sizes[cat] = allowed
         self.workers = []
@@ -466,9 +500,11 @@ class Bot:
     def build_jobs(self):
         jobs = []
         base_jobs = []
+        enabled_genders = {g for g, v in self.cfg.get("categories", {}).items() if v}
         for cat, info in CATEGORIES.items():
-            for cid in info["ids"]:
-                base_jobs.append((cat, cid, info["max_price"]))
+            for gender in enabled_genders:
+                for cid in info["ids"].get(gender, []):
+                    base_jobs.append((cat, cid, info["max_price"]))
         for dom in SCAN_DOMAINS:
             for cat, cid, mp in base_jobs:
                 url = f"https://{dom}/catalog?catalog[]={cid}&price_to={mp}&order=newest_first"

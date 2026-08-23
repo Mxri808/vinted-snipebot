@@ -142,9 +142,9 @@
     "Zegna": null
   },
   "categories": {
-    "damen": true,
+    "damen": false,
     "herren": true,
-    "designer": true
+    "designer": false
   },
   "sizes": {
     "damen_kleidung": [
