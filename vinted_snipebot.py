@@ -10,7 +10,6 @@ import os
 import random
 import re
 import signal
-import subprocess
 import time
 from curl_cffi import requests as cffi_requests
 import requests as std_requests
@@ -122,15 +121,14 @@ class VintedSnipebot:
     def _rotate_tor_circuit(self):
         print(f"   \U0001f504 Tor Circuit wechseln...")
         try:
-            subprocess.run(["sudo", "systemctl", "restart", "tor"], timeout=10)
-            time.sleep(5)
             self._init_tor_session()
+            time.sleep(8)
             ip = self._get_tor_ip()
             self.tor_ip = ip
             print(f"   \u2705 Neue IP: {ip}")
             return True
         except Exception as e:
-            print(f"   \u274c Tor Restart Fehler: {e}")
+            print(f"   \u274c Tor Fehler: {e}")
             return False
 
     def _get_tor_ip(self):
@@ -245,7 +243,7 @@ class VintedSnipebot:
         return True
 
     def scrape_catalog_page(self, catalog_id, page, max_price):
-        for attempt in range(3):
+        for attempt in range(5):
             try:
                 url = f"https://www.vinted.de/catalog?catalog[]={catalog_id}&page={page}&price_to={max_price}&order=newest_first"
                 response = self.session.get(url, timeout=20, headers={"Referer": "https://www.vinted.de/catalog"})
@@ -254,7 +252,7 @@ class VintedSnipebot:
                     self.block_count += 1
                     print(f"   \u26a0\ufe0f Block #{self.block_count} - wechsle IP...")
                     if self._rotate_tor_circuit():
-                        time.sleep(3)
+                        time.sleep(5)
                         continue
                     return None
 
