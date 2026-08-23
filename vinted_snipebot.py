@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """
-Vinted Snipebot - Playwright-based to bypass Cloudflare
+Vinted Snipebot - Tor Circuit Rotation
+Bei jedem Cloudflare-Block neue Tor-IP holen.
 """
 
+import html as html_mod
 import json
+import os
 import random
 import re
 import signal
+import subprocess
 import time
+from curl_cffi import requests as cffi_requests
 import requests as std_requests
 from datetime import datetime
 from pathlib import Path
@@ -81,42 +86,6 @@ EXCLUDE_KEYWORDS = [
     "waschmittel", "pille", "medikament", "tablette",
 ]
 
-EXTRACT_ITEMS_JS = """
-() => {
-    const items = [];
-    document.querySelectorAll('[class*="feed-grid"] a[href*="/items/"]').forEach(a => {
-        const href = a.getAttribute('href') || '';
-        const idMatch = href.match(/\\/items\\/(\\d+)/);
-        if (!idMatch) return;
-        const itemId = idMatch[1];
-        if (items.some(i => i.id === itemId)) return;
-
-        const img = a.querySelector('img');
-        const imageUrl = img ? (img.src || img.dataset.src || '') : '';
-
-        const label = a.getAttribute('aria-label') || a.getAttribute('title') || '';
-        const brandM = label.match(/Marke:\\s*([^,]+)/);
-        const sizeM = label.match(/Gr\\.?\\s?e:\\s*([^,]+)/);
-        const priceM = label.match(/(\\d+[.,]\\d{2})\\s*€/);
-        const condM = label.match(/Zustand:\\s*([^,]+)/);
-        const title = label.split(',')[0].trim() || '';
-
-        items.push({
-            id: itemId,
-            title: title,
-            brand: brandM ? brandM[1].trim() : '',
-            size_str: sizeM ? sizeM[1].trim() : '',
-            price: priceM ? parseFloat(priceM[1].replace(',', '.')) : 0,
-            condition: condM ? condM[1].trim() : '',
-            url: 'https://www.vinted.de' + href.split('?')[0],
-            image_url: imageUrl,
-            full_label: label,
-        });
-    });
-    return items;
-}
-"""
-
 
 class VintedSnipebot:
     def __init__(self):
@@ -128,8 +97,10 @@ class VintedSnipebot:
         self._brand_names = set()
         self._build_brand_data()
         self._shutdown = False
-        self.browser = None
-        self.page = None
+        self.session = None
+        self.tor_ip = "?"
+        self.block_count = 0
+        self._init_tor_session()
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         signal.signal(signal.SIGINT, self._handle_shutdown)
 
@@ -137,49 +108,37 @@ class VintedSnipebot:
         print("\n\U0001f6d1 Shutdown...")
         self._shutdown = True
         self.save_seen_items()
-        self._close_browser()
 
-    def _close_browser(self):
-        try:
-            if self.browser:
-                self.browser.close()
-        except Exception:
-            pass
-
-    def _init_browser(self):
-        from playwright.sync_api import sync_playwright
-        self.pw = sync_playwright().start()
-        self.browser = self.pw.chromium.launch(
-            headless=True,
-            args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-blink-features=AutomationControlled",
-            ]
+    def _init_tor_session(self):
+        self.session = cffi_requests.Session(
+            impersonate="chrome131",
+            proxy="socks5h://127.0.0.1:9050"
         )
-        self.page = self.browser.new_page(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            locale="de-DE",
-        )
-        self.page.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-        """)
-        print("\U0001f916 Browser gestartet (Playwright Chromium)")
+        self.session.headers.update({
+            "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+            "DNT": "1",
+        })
 
-    def _ensure_browser(self):
+    def _rotate_tor_circuit(self):
+        print(f"   \U0001f504 Tor Circuit wechseln...")
         try:
-            if not self.browser or not self.page:
-                self._init_browser()
-            self.page.goto("https://www.vinted.de", wait_until="domcontentloaded", timeout=30000)
-            time.sleep(2)
+            subprocess.run(["sudo", "systemctl", "restart", "tor"], timeout=10)
+            time.sleep(5)
+            self._init_tor_session()
+            ip = self._get_tor_ip()
+            self.tor_ip = ip
+            print(f"   \u2705 Neue IP: {ip}")
             return True
         except Exception as e:
-            print(f"\u274c Browser-Init Fehler: {e}")
-            self._close_browser()
-            self.browser = None
-            self.page = None
+            print(f"   \u274c Tor Restart Fehler: {e}")
             return False
+
+    def _get_tor_ip(self):
+        try:
+            r = self.session.get("https://api.ipify.org", timeout=10)
+            return r.text.strip() if r.status_code == 200 else "?"
+        except Exception:
+            return "?"
 
     def load_config(self):
         if CONFIG_FILE.exists():
@@ -286,34 +245,84 @@ class VintedSnipebot:
         return True
 
     def scrape_catalog_page(self, catalog_id, page, max_price):
-        try:
-            url = f"https://www.vinted.de/catalog?catalog[]={catalog_id}&page={page}&price_to={max_price}&order=newest_first"
-            self.page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(random.uniform(2, 4))
-            current_url = self.page.url
-            if "/challenge" in current_url or "captcha" in current_url.lower():
-                print(f"      \u26a0\ufe0f Cloudflare Challenge - warte 10s...")
-                time.sleep(10)
-                self.page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                time.sleep(random.uniform(2, 4))
-            html = self.page.content()
-            if len(html) < 5000:
+        for attempt in range(3):
+            try:
+                url = f"https://www.vinted.de/catalog?catalog[]={catalog_id}&page={page}&price_to={max_price}&order=newest_first"
+                response = self.session.get(url, timeout=20, headers={"Referer": "https://www.vinted.de/catalog"})
+
+                if response.status_code == 403:
+                    self.block_count += 1
+                    print(f"   \u26a0\ufe0f Block #{self.block_count} - wechsle IP...")
+                    if self._rotate_tor_circuit():
+                        time.sleep(3)
+                        continue
+                    return None
+
+                if response.status_code != 200:
+                    return []
+
+                html = response.text
+                if len(html) < 5000:
+                    return []
+
+                items = []
+                seen = set()
+
+                for m in re.finditer(
+                    r'product-item-id-(\d+)--overlay-link[^>]*title="([^"]*)"',
+                    html,
+                ):
+                    item_id = m.group(1)
+                    label = html_mod.unescape(m.group(2))
+                    if item_id in seen:
+                        continue
+                    seen.add(item_id)
+
+                    brand_m = re.search(r'Marke:\s*([^,]+)', label)
+                    size_m = re.search(r'Gr.\s*e:\s*([^,]+)', label)
+                    price_m = re.search(r'(\d+[.,]\d{2})\s*\u20ac', label)
+                    cond_m = re.search(r'Zustand:\s*([^,]+)', label)
+                    title = label.split(',')[0].strip() if label else ""
+
+                    try:
+                        price = float(price_m.group(1).replace(",", ".")) if price_m else 0
+                    except (ValueError, AttributeError):
+                        price = 0
+
+                    link_m = re.search(rf'href="(/items/{item_id}[^"]*)"', html)
+                    link = link_m.group(1) if link_m else f"/items/{item_id}"
+
+                    img_m = re.search(
+                        rf'product-item-id-{item_id}--image[^"]*"[^>]*>.*?<img src="(https://images[^"]+)"',
+                        html, re.DOTALL,
+                    )
+                    image_url = img_m.group(1) if img_m else ""
+
+                    items.append({
+                        "id": item_id,
+                        "title": title,
+                        "brand": brand_m.group(1).strip() if brand_m else "",
+                        "size_str": size_m.group(1).strip() if size_m else "",
+                        "price": price,
+                        "condition": cond_m.group(1).strip() if cond_m else "",
+                        "url": f"https://www.vinted.de{link}",
+                        "image_url": image_url,
+                        "full_label": label,
+                    })
+
+                return items
+
+            except Exception as e:
+                print(f"      \u274c Fehler: {e}")
                 return []
-            items = self.page.evaluate(EXTRACT_ITEMS_JS)
-            return items if items else []
-        except Exception as e:
-            print(f"      \u274c Scrape Fehler: {e}")
-            return []
+
+        return []
 
     def send_telegram_photo(self, image_url, caption):
         if not self.telegram_bot_token or not self.telegram_chat_id or not image_url:
             return "error"
         try:
-            img_resp = std_requests.get(
-                image_url,
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://www.vinted.de/"},
-                timeout=15,
-            )
+            img_resp = self.session.get(image_url, headers={"Referer": "https://www.vinted.de/"}, timeout=15)
             if img_resp.status_code != 200 or len(img_resp.content) < 100:
                 return "error"
         except Exception:
@@ -325,7 +334,7 @@ class VintedSnipebot:
                 response = std_requests.post(
                     url,
                     data={"chat_id": self.telegram_chat_id, "caption": caption, "parse_mode": "HTML"},
-                    files={"photo": ("img.webp", img_resp.content, "image/webp")},
+                    files={"photo": ("img.jpg", img_resp.content, "image/jpeg")},
                     timeout=15,
                 )
                 if response.status_code == 200:
@@ -347,9 +356,8 @@ class VintedSnipebot:
     def send_telegram_text(self, message):
         if not self.telegram_bot_token or not self.telegram_chat_id:
             return False
-        url = f"https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage"
         try:
-            response = std_requests.post(url, json={
+            response = std_requests.post(f"https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage", json={
                 "chat_id": self.telegram_chat_id,
                 "text": message,
                 "parse_mode": "HTML",
@@ -386,6 +394,8 @@ class VintedSnipebot:
                 break
             for page in [1, 2]:
                 page_items = self.scrape_catalog_page(catalog_id, page, max_price)
+                if page_items is None:
+                    return sent, True
                 if not page_items:
                     break
                 for item in page_items:
@@ -412,43 +422,49 @@ class VintedSnipebot:
                                     result = self.send_telegram_photo(image_url, caption)
                                     if result == "ok":
                                         sent += 1
-                                    time.sleep(random.uniform(3.0, 4.0))
+                                    time.sleep(random.uniform(2.0, 2.5))
                 time.sleep(random.uniform(2, 3))
-            time.sleep(random.uniform(3, 5))
+            time.sleep(random.uniform(2, 3))
         return sent, False
 
     def run(self):
         print("=" * 60)
-        print("\U0001f680 VINTED SNIPEBOT (Playwright)")
+        print("\U0001f680 VINTED SNIPEBOT (Tor + Auto-Rotation)")
         print("=" * 60)
         print(f"\U0001f3f7\ufe0f  Marken: {len(self._brand_names)}")
         print(f"\U0001f4cf Groessenfilter: aktiviert")
-        for cat, price in CAT_MAX_PRICES.items():
-            print(f"   {cat}: max. {price}\u20ac")
+
+        self.tor_ip = self._get_tor_ip()
+        print(f"\U0001f310 Tor IP: {self.tor_ip}")
         print("=" * 60)
 
         while True:
             try:
-                if not self._ensure_browser():
-                    print("\U0001f504 Browser Neustart in 60s...")
-                    time.sleep(60)
-                    continue
-
-                print(f"\n\U0001f50d Suche: {datetime.now().strftime('%H:%M:%S')}")
+                print(f"\n\U0001f50d Suche: {datetime.now().strftime('%H:%M:%S')} | IP: {self.tor_ip}")
                 print("-" * 40)
 
                 total_sent = 0
+                blocked = False
+
                 cats = list(CATALOG_IDS.items())
                 random.shuffle(cats)
 
                 for category, catalog_ids in cats:
-                    if self._shutdown:
+                    if blocked or self._shutdown:
                         break
                     max_price = CAT_MAX_PRICES.get(category, 50)
                     print(f"\n\U0001f4c2 {category} ({len(catalog_ids)} Sub-Kats, max {max_price}\u20ac)")
-                    cat_sent, _ = self.scrape_category(category, catalog_ids)
+                    cat_sent, was_blocked = self.scrape_category(category, catalog_ids)
                     total_sent += cat_sent
+                    if was_blocked:
+                        blocked = True
+                        break
                     time.sleep(random.uniform(2, 3))
+
+                if blocked:
+                    self.save_seen_items()
+                    time.sleep(10)
+                    continue
 
                 if total_sent > 0:
                     print(f"\n\U0001f4e4 Fertig! {total_sent} Fotos gesendet!")
@@ -470,10 +486,6 @@ class VintedSnipebot:
                 print(f"\n\u274c Fehler: {e}")
                 import traceback
                 traceback.print_exc()
-                self._close_browser()
-                self.browser = None
-                self.page = None
-                print("\U0001f504 Neustart in 60s...")
                 time.sleep(60)
 
 
