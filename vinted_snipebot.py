@@ -413,7 +413,7 @@ class Bot:
     def run(self):
         print("=" * 50)
         print(f"VINTED SNIPEBOT v4 ({NUM_WORKERS} Worker)")
-        print(f"Laender: {', '.join(d.split('.')[1] for d in SCAN_DOMAINS)}")
+        print(f"Laender: {', '.join(d.split('.')[2] for d in SCAN_DOMAINS)}")
         print("Limits: Kategorie + Marken-Tier (das niedrigere gilt)")
         print("=" * 50)
         base_jobs = []
