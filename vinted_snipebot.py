@@ -246,7 +246,7 @@ class VintedSnipebot:
         for attempt in range(5):
             try:
                 url = f"https://www.vinted.de/catalog?catalog[]={catalog_id}&page={page}&price_to={max_price}&order=newest_first"
-                response = self.session.get(url, timeout=20, headers={"Referer": "https://www.vinted.de/catalog"})
+                response = self.session.get(url, timeout=45, headers={"Referer": "https://www.vinted.de/catalog"})
 
                 if response.status_code == 403:
                     self.block_count += 1
@@ -390,7 +390,7 @@ class VintedSnipebot:
         for catalog_id in catalog_ids:
             if self._shutdown:
                 break
-            for page in [1, 2]:
+            for page in [1]:
                 page_items = self.scrape_catalog_page(catalog_id, page, max_price)
                 if page_items is None:
                     return sent, True
