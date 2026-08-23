@@ -31,14 +31,15 @@ def main():
     cats = {}
     for m in re.finditer(r'/catalog/(\d{2,6})-([a-z0-9-]+)', html):
         cid, slug = m.group(1), m.group(2)
-        if cid in cats:
+        alt = cats.get(cid)
+        if alt and alt["parent"]:
             continue
         nach = html[m.end():m.end() + 600]
         pm = re.search(r'parentId\\?":(\d+)', nach)
         dm = re.search(r'depth\\?":(\d+)', nach)
         cats[cid] = {
             "slug": slug,
-            "parent": pm.group(1) if pm else None,
+            "parent": pm.group(1) if pm else (alt["parent"] if alt else None),
             "depth": dm.group(1) if dm else "?",
         }
 
