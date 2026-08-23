@@ -1,33 +1,29 @@
 #!/usr/bin/env python3
-"""Diagnose 2: Wo genau steckt favourite_count?"""
+"""Diagnose 3: Kontext der echten favourite_count-Daten."""
 import re
 
 
 def main():
-    try:
-        html = open("/tmp/cat.html").read()
-    except FileNotFoundError:
-        print("Bitte erst diag.py laufen lassen")
-        return
-
-    print("groesse:", len(html))
+    html = open("/tmp/cat.html").read()
     positions = [m.start() for m in re.finditer(r"favourite_count", html)]
-    print("Anzahl:", len(positions), "| erste Positionen:", positions[:5])
+    print("Anzahl:", len(positions))
 
-    if positions:
-        p = positions[0]
-        print("\n--- Kontext um Vorkommen 1 ---")
-        print(repr(html[p - 400:p + 400]))
+    for p in positions[3:6]:
+        print(f"\n--- Position {p} ---")
+        print(repr(html[p - 500:p + 300]))
 
-    # Paare id -> favourite_count im ganzen Dokument?
-    pairs = re.findall(r'"id":\s*(\d{7,12})[^{}]{0,600}?"favourite_count":\s*(\d+)', html)
-    print("\nid->fav Paare gefunden:", len(pairs))
-    print(pairs[:5])
-
-    # Umgekehrte Reihenfolge probieren
-    pairs2 = re.findall(r'"favourite_count":\s*(\d+)[^{}]{0,600}?"id":\s*(\d{7,12})', html)
-    print("fav->id Paare:", len(pairs2))
-    print(pairs2[:5])
+    # Versuche id->fav Paarungen in verschiedenen Formaten
+    tests = [
+        (r'"id":(\d{7,12}).{0,2000}?"favourite_count":(\d+)', "id dann fav"),
+        (r'"favourite_count":(\d+).{0,2000}?"id":(\d{7,12})', "fav dann id"),
+        (r'\\?"id\\?":\s*\\?(\d{7,12})\\?.{0,2000}?\\?"favourite_count\\?":\s*\\?(\d+)', "escaped"),
+    ]
+    for pat, label in tests:
+        m = re.findall(pat, html)
+        print(f"\n{label}: {len(m)} Treffer")
+        if m:
+            print(m[:4])
+            break
 
 
 if __name__ == "__main__":
