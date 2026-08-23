@@ -28,7 +28,11 @@ NUM_WORKERS = 4
 CYCLE_SLEEP = 10
 
 MAIN_DOMAIN = "www.vinted.de"
-ROTATE_DOMAINS = ["www.vinted.fr", "www.vinted.it", "www.vinted.nl"]
+# Nur Deutschland: Alles was nach DE versandt wird, erscheint hier.
+# Fremd-Laender-Domains enthalten viele Items, die man von DE nicht kaufen kann.
+SCAN_DOMAINS = [
+    ("www.vinted.de", "de"),
+]
 
 CATEGORIES = {
     "schuhe": {
@@ -133,12 +137,20 @@ BAD_WORDS = [
     "staubbeutel nur", "dust bag only", "dustbag only",
 ]
 
-# Sprach-Patterns pro Domain
+# Sprach-Patterns pro Domain (Marke / Groesse / Zustand im Overlay-Label)
 LANG_PATTERNS = {
     "de": {"brand": r"Marke\s*:\s*([^,]+)", "size": r"Gr(?:o|\u00f6)\s*e\s*:\s*([^,]+)", "cond": r"Zustand\s*:\s*([^,]+)"},
     "fr": {"brand": r"Marque\s*:\s*([^,]+)", "size": r"Taille\s*:\s*([^,]+)", "cond": r"\u00c9tat\s*:\s*([^,]+)"},
-    "it": {"brand": r"Marca\s*:\s*([^,]+)", "size": r"Taglia\s*:\s*([^,]+)", "cond": r"Condizion[ei]\s*:\s*([^,]+)"},
     "nl": {"brand": r"Merk\s*:\s*([^,]+)", "size": r"Maat\s*:\s*([^,]+)", "cond": r"Staat\s*:\s*([^,]+)"},
+    "it": {"brand": r"Marca\s*:\s*([^,]+)", "size": r"Taglia\s*:\s*([^,]+)", "cond": r"Condizion[ei]\s*:\s*([^,]+)"},
+    "es": {"brand": r"Marca\s*:\s*([^,]+)", "size": r"Talla\s*:\s*([^,]+)", "cond": r"(?:Estado(?:\s+del\s+art\u00edculo)?)\s*:\s*([^,]+)"},
+    "pt": {"brand": r"Marca\s*:\s*([^,]+)", "size": r"Tamanho\s*:\s*([^,]+)", "cond": r"(?:Estado(?:\s+do\s+artigo)?)\s*:\s*([^,]+)"},
+    "pl": {"brand": r"Marka\s*:\s*([^,]+)", "size": r"Rozmiar\s*:\s*([^,]+)", "cond": r"Stan\s*:\s*([^,]+)"},
+    "cs": {"brand": r"Zna\u010dka\s*:\s*([^,]+)", "size": r"Velikost\s*:\s*([^,]+)", "cond": r"Stav(?:\s+zbo\u017e\u00ed)?\s*:\s*([^,]+)"},
+    "sk": {"brand": r"Zna\u010dka\s*:\s*([^,]+)", "size": r"Ve\u013ekos\u0165\s*:\s*([^,]+)", "cond": r"Stav\s*:\s*([^,]+)"},
+    "hu": {"brand": r"M\u00e1rka\s*:\s*([^,]+)", "size": r"M\u00e9ret\s*:\s*([^,]+)", "cond": r"\u00c1llapot\s*:\s*([^,]+)"},
+    "ro": {"brand": r"Marc\u0103\s*:\s*([^,]+)", "size": r"M\u0103rime(?:a)?\s*:\s*([^,]+)", "cond": r"Stare(?:\s+produsului)?\s*:\s*([^,]+)"},
+    "lt": {"brand": r"Prek\u0117s \u017eenklas\s*:\s*([^,]+)", "size": r"Dydis\s*:\s*([^,]+)", "cond": r"B\u016bsena\s*:\s*([^,]+)"},
 }
 
 
@@ -182,7 +194,7 @@ def parse_page(html_text, lang):
     brand_re = re.compile(pats["brand"])
     size_re = re.compile(pats["size"])
     cond_re = re.compile(pats["cond"])
-    price_re = re.compile(r"(\d+[.,]\d{2})\s*\u20ac")
+    price_re = re.compile(r"(\d+[.,]\d{2})\s*(?:\u20ac|z\u0142)")
 
     items = []
     seen_ids = set()
