@@ -155,6 +155,9 @@ BRAND_TIERS = {
     "nudiejeans": 35,
     "versacejeanscouture": 35, "versusversace": 35,
     "jwandersonxuniqlo": 35, "kenzoxhm": 35,
+    # Armani-Familie - nur billige Snipes: 30 EUR
+    "armani": 30, "giorgioarmani": 30, "emporioarmani": 30,
+    "armaniexchange": 25, "armanijeans": 30, "ea7": 30,
 }
 
 BAD_WORDS = [
