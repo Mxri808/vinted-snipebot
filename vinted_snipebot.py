@@ -1,479 +1,273 @@
 #!/usr/bin/env python3
 """
-Vinted Snipebot - Tor Circuit Rotation
-Bei jedem Cloudflare-Block neue Tor-IP holen.
+Vinted Snipebot v2 - Clean Rewrite
+- Tor Proxy fuer alle Requests
+- Neue Tor-Session bei Cloudflare-Block
+- Telegram mit Fotos
 """
 
 import html as html_mod
 import json
-import os
 import random
 import re
 import signal
 import time
-from curl_cffi import requests as cffi_requests
-import requests as std_requests
 from datetime import datetime
 from pathlib import Path
 
-CONFIG_FILE = Path(__file__).parent / "config.json"
-SEEN_ITEMS_FILE = Path(__file__).parent / "seen_items.json"
+import requests
+from curl_cffi import requests as cffi_requests
 
-CATALOG_IDS = {
-    "tops_tshirts": ["12"],
-    "hosen_jeans": ["9", "183"],
-    "schuhe": ["2632", "543", "1049", "2630", "215", "1242", "1452", "1233"],
+BASE = Path(__file__).parent
+CONFIG_FILE = BASE / "config.json"
+SEEN_FILE = BASE / "seen_items.json"
+TOR_PROXY = "socks5h://127.0.0.1:9050"
+
+# Kategorien: name -> (vinted catalog ids, max price EUR)
+CATEGORIES = {
+    "schuhe": {
+        "ids": ["2632", "543", "1049", "2630", "215", "1242", "1452", "1233"],
+        "max_price": 50,
+    },
+    "hosen_jeans": {
+        "ids": ["9", "183"],
+        "max_price": 30,
+    },
+    "oberteile": {
+        "ids": ["12"],
+        "max_price": 15,
+    },
 }
 
-CAT_EMOJIS = {
-    "schuhe": "\U0001f45f",
-    "hosen_jeans": "\U0001f456",
-    "tops_tshirts": "\U0001f455",
+SIZE_KEYS = {
+    "schuhe": ["damen_schuhe", "herren_schuhe"],
+    "hosen_jeans": ["damen_jeans", "damen_kleidung", "herren_jeans", "herren_kleidung"],
+    "oberteile": ["damen_kleidung", "herren_kleidung"],
 }
 
-CAT_MAX_PRICES = {
-    "schuhe": 50,
-    "hosen_jeans": 30,
-    "tops_tshirts": 15,
-}
-
-BABY_KIDS_BLACKLIST = [
-    "baby", "kinder", "kids", "child", "children", "toddler",
-    "enfant", "bambino", "bambina", "neonato", "bebe",
-    "neo", "newborn", "infant",
-    "12 mois", "18 mois", "24 mois", "36 mois",
-    "monat", "monate", "jahre", "jahrig",
-    "strampler", "leggin", "petit", "petite", "garcon", "fille",
-    "jungen", "madchen",
-]
-
-EXCLUDE_KEYWORDS = [
-    "buch", "buchar", "book", "books", "romane", "roman", "krimi", "thriller",
-    "fantasy", "sachbuch", "ratgeber", "biografie", "taschenbuch", "hardcover",
-    "ebook", "lesebuch", "manga", "novel", "fiction", "lexikon", "atlas",
-    "parfum", "parfum", "eau de toilette", "eau de parfum", "eau de cologne",
-    "perfume", "fragrance", "scent", "duft", "deo", "deodorant",
-    "body spray", "flakon", "flacon", "dutter", "raumduft", "kerzendutter",
-    "kosmetik", "cosmetic", "make-up", "makeup", "schminke", "mascara",
-    "lippenstift", "foundation", "concealer", "puder", "blush",
-    "augenpalette", "eyeshadow", "eyeliner", "nagellack", "nail polish",
-    "creme", "serum", "moisturizer", "lotion", "peeling",
-    "gesichtsmaske", "feuchtigkeitscreme", "reinigung", "cleanser",
-    "shampoo", "spulung", "conditioner", "haarpflege",
-    "zahnpasta", "toothpaste", "mundwasser",
-    "rasierer", "razor", "after shave", "aftershave",
-    "dvd", "bluray", "blu-ray", "kassette", "cd", "vinyl",
-    "spiel", "spielzeug", "toy", "puzzle", "lego", "brettspiel",
-    "handyhulle", "phone case",
-    "glas", "tasse", "becher", "flasche", "kerze",
-    "decke", "bettwasche", "kissen", "polster",
-    "geschenktute", "geschenktasche", "gift bag", "gift box", "geschenkbox",
-    "verpackung", "packaging", "papier", "tissue", "seidenpapier",
-    "sticker", "aufkleber", "aufnasher", "patch",
-    "ringelsocken", "strumpf", "socken", "pantyhose",
-    "maske", "mask", "schutzmaske", "ffp2",
-    "tie", "krawatt", "fliege", "schlips",
-    "burreste", "kamm", "burr", "kamm",
-    "pinsel", "brush", "schauf",
-    "waschmittel", "pille", "medikament", "tablette",
+BAD_WORDS = [
+    "baby", "kinder", "kids", "child", "toddler", "enfant", "bambino",
+    "bebe", "newborn", "infant", "monat", "jahre",
+    "parfum", "perfume", "deo", "kosmetik", "makeup", "shampoo",
+    "buch", "book", "dvd", "cd", "vinyl", "spielzeug", "toy",
+    "handyhulle", "phone case", "maske", "socken",
 ]
 
 
-class VintedSnipebot:
+class Bot:
     def __init__(self):
-        self.config = self.load_config()
-        self.seen_items = self.load_seen_items()
-        self.telegram_bot_token = self.config.get("telegram_bot_token", "")
-        self.telegram_chat_id = self.config.get("telegram_chat_id", "")
-        self._size_cache = self._build_size_cache()
-        self._brand_names = set()
-        self._build_brand_data()
-        self._shutdown = False
-        self.session = None
-        self.tor_ip = "?"
-        self.block_count = 0
-        self._init_tor_session()
-        signal.signal(signal.SIGTERM, self._handle_shutdown)
-        signal.signal(signal.SIGINT, self._handle_shutdown)
-
-    def _handle_shutdown(self, signum, frame):
-        print("\n\U0001f6d1 Shutdown...")
-        self._shutdown = True
-        self.save_seen_items()
-
-    def _init_tor_session(self):
-        self.session = cffi_requests.Session(
-            impersonate="chrome131",
-            proxy="socks5h://127.0.0.1:9050"
-        )
-        self.session.headers.update({
-            "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
-            "DNT": "1",
-        })
-
-    def _rotate_tor_circuit(self):
-        print(f"   \U0001f504 Tor Circuit wechseln...")
-        try:
-            self._init_tor_session()
-            time.sleep(8)
-            ip = self._get_tor_ip()
-            self.tor_ip = ip
-            print(f"   \u2705 Neue IP: {ip}")
-            return True
-        except Exception as e:
-            print(f"   \u274c Tor Fehler: {e}")
-            return False
-
-    def _get_tor_ip(self):
-        try:
-            r = self.session.get("https://api.ipify.org", timeout=10)
-            return r.text.strip() if r.status_code == 200 else "?"
-        except Exception:
-            return "?"
-
-    def load_config(self):
-        if CONFIG_FILE.exists():
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        return {}
-
-    def load_seen_items(self):
-        if SEEN_ITEMS_FILE.exists():
-            with open(SEEN_ITEMS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        return {}
-
-    def save_seen_items(self):
-        with open(SEEN_ITEMS_FILE, "w", encoding="utf-8") as f:
-            json.dump(self.seen_items, f, indent=2)
-
-    def is_new_item(self, item_id):
-        return item_id not in self.seen_items
-
-    def mark_as_seen(self, item_id):
-        self.seen_items[item_id] = datetime.now().isoformat()
-
-    def _build_size_cache(self):
-        sizes_config = self.config.get("sizes", {})
-        cache = {}
-        size_map = {
-            "schuhe": ["damen_schuhe", "herren_schuhe"],
-            "hosen_jeans": ["damen_jeans", "damen_kleidung", "herren_jeans", "herren_kleidung"],
-            "tops_tshirts": ["damen_kleidung", "herren_kleidung", "herren_hemden"],
-        }
-        for category, size_keys in size_map.items():
+        self.cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        self.token = self.cfg["telegram_bot_token"]
+        self.chat_id = self.cfg["telegram_chat_id"]
+        self.seen = self.load_json(SEEN_FILE, {})
+        self.brands = {self.norm(b) for b in self.cfg.get("brands", {})}
+        self.sizes = {}
+        for cat, keys in SIZE_KEYS.items():
             allowed = set()
-            for key in size_keys:
-                for size_val in sizes_config.get(key, []):
-                    allowed.add(str(size_val).strip().lower())
-            cache[category] = allowed
-        return cache
+            for k in keys:
+                for s in self.cfg.get("sizes", {}).get(k, []):
+                    allowed.add(str(s).strip().lower())
+            if allowed:
+                self.sizes[cat] = allowed
+        self.session = None
+        self.ip = "?"
+        self.shutdown = False
+        signal.signal(signal.SIGTERM, self.stop)
+        signal.signal(signal.SIGINT, self.stop)
+        self.new_session()
 
-    def _build_brand_data(self):
-        brands = self.config.get("brands", {})
-        for brand_name, brand_id in brands.items():
-            normalized = brand_name.lower().strip()
-            self._brand_names.add(normalized)
+    def stop(self, *_):
+        print("\nStop.")
+        self.shutdown = True
+        self.save_json(SEEN_FILE, self.seen)
 
     @staticmethod
-    def _normalize_brand(name):
-        return re.sub(r'[^a-z0-9]', '', name.lower())
+    def norm(s):
+        return re.sub(r"[^a-z0-9]", "", s.lower())
 
-    def match_brand(self, brand_from_label):
-        if not brand_from_label or brand_from_label.lower() in ("keine", "unknown", "no brand", ""):
-            return None
-        label_norm = self._normalize_brand(brand_from_label)
-        if not label_norm:
-            return None
-        for configured_name in self._brand_names:
-            if self._normalize_brand(configured_name) == label_norm:
-                return brand_from_label.strip()
-        return None
-
-    def check_size_str(self, size_str, category):
-        allowed_sizes = self._size_cache.get(category, set())
-        if not allowed_sizes:
-            return True
-        size_lower = size_str.strip().lower()
-        if not size_lower or size_lower in ("none", "sonstige", "einheitsgrosse", "one size"):
-            return True
-        for allowed in allowed_sizes:
-            if allowed in size_lower or size_lower in allowed:
-                return True
-        return False
-
-    def _filter_item(self, item, category):
-        if not item.get("brand"):
-            return False
-        label = item.get("full_label", item.get("title", ""))
-        title = item.get("title", "").lower()
-        combined = (label + " " + title).lower()
-        for word in BABY_KIDS_BLACKLIST:
-            if word in combined:
-                return False
-        for word in EXCLUDE_KEYWORDS:
-            if word in combined:
-                return False
-        size_str = item.get("size_str", "")
-        size_lower = size_str.strip().lower()
-        kids_sizes_cm = {
-            "50", "56", "62", "68", "74", "80", "86", "92", "98", "104",
-            "110", "116", "122", "128", "134", "140", "146", "152", "158", "164", "170",
-        }
-        kids_sizes_shoe = {str(i) for i in range(17, 36)}
-        for part in re.split(r'[/,\s|]+', size_lower):
-            part = part.strip()
-            if part in kids_sizes_cm or part in kids_sizes_shoe:
-                return False
-        if not self.check_size_str(size_str, category):
-            return False
-        return True
-
-    def scrape_catalog_page(self, catalog_id, page, max_price):
-        for attempt in range(5):
-            try:
-                url = f"https://www.vinted.de/catalog?catalog[]={catalog_id}&page={page}&price_to={max_price}&order=newest_first"
-                response = self.session.get(url, timeout=90, headers={"Referer": "https://www.vinted.de/catalog"})
-
-                if response.status_code == 403:
-                    self.block_count += 1
-                    print(f"   \u26a0\ufe0f Block #{self.block_count} - wechsle IP...")
-                    if self._rotate_tor_circuit():
-                        time.sleep(5)
-                        continue
-                    return None
-
-                if response.status_code != 200:
-                    return []
-
-                html = response.text
-                if len(html) < 5000:
-                    return []
-
-                items = []
-                seen = set()
-
-                for m in re.finditer(
-                    r'product-item-id-(\d+)--overlay-link[^>]*title="([^"]*)"',
-                    html,
-                ):
-                    item_id = m.group(1)
-                    label = html_mod.unescape(m.group(2))
-                    if item_id in seen:
-                        continue
-                    seen.add(item_id)
-
-                    brand_m = re.search(r'Marke:\s*([^,]+)', label)
-                    size_m = re.search(r'Gr.\s*e:\s*([^,]+)', label)
-                    price_m = re.search(r'(\d+[.,]\d{2})\s*\u20ac', label)
-                    cond_m = re.search(r'Zustand:\s*([^,]+)', label)
-                    title = label.split(',')[0].strip() if label else ""
-
-                    try:
-                        price = float(price_m.group(1).replace(",", ".")) if price_m else 0
-                    except (ValueError, AttributeError):
-                        price = 0
-
-                    link_m = re.search(rf'href="(/items/{item_id}[^"]*)"', html)
-                    link = link_m.group(1) if link_m else f"/items/{item_id}"
-
-                    img_m = re.search(
-                        rf'product-item-id-{item_id}--image[^"]*"[^>]*>.*?<img src="(https://images[^"]+)"',
-                        html, re.DOTALL,
-                    )
-                    image_url = img_m.group(1) if img_m else ""
-
-                    items.append({
-                        "id": item_id,
-                        "title": title,
-                        "brand": brand_m.group(1).strip() if brand_m else "",
-                        "size_str": size_m.group(1).strip() if size_m else "",
-                        "price": price,
-                        "condition": cond_m.group(1).strip() if cond_m else "",
-                        "url": f"https://www.vinted.de{link}",
-                        "image_url": image_url,
-                        "full_label": label,
-                    })
-
-                return items
-
-            except Exception as e:
-                print(f"      \u274c Fehler: {e}")
-                return []
-
-        return []
-
-    def send_telegram_photo(self, image_url, caption):
-        if not self.telegram_bot_token or not self.telegram_chat_id or not image_url:
-            return "error"
+    @staticmethod
+    def load_json(path, default):
         try:
-            img_resp = self.session.get(image_url, headers={"Referer": "https://www.vinted.de/"}, timeout=30)
-            if img_resp.status_code != 200 or len(img_resp.content) < 100:
-                return "error"
+            return json.loads(path.read_text(encoding="utf-8"))
         except Exception:
-            return "error"
+            return default
 
-        url = f"https://api.telegram.org/bot{self.telegram_bot_token}/sendPhoto"
-        for attempt in range(3):
-            try:
-                response = std_requests.post(
-                    url,
-                    data={"chat_id": self.telegram_chat_id, "caption": caption, "parse_mode": "HTML"},
-                    files={"photo": ("img.jpg", img_resp.content, "image/jpeg")},
-                    timeout=15,
-                )
-                if response.status_code == 200:
-                    return "ok"
-                elif response.status_code == 429:
-                    retry_after = 35
-                    try:
-                        retry_after = response.json().get("parameters", {}).get("retry_after", 35)
-                    except Exception:
-                        pass
-                    print(f"      \u23f3 Rate-limit - warte {retry_after}s...")
-                    time.sleep(retry_after)
-                else:
-                    return "error"
-            except Exception:
-                time.sleep(2)
-        return "error"
-
-    def send_telegram_text(self, message):
-        if not self.telegram_bot_token or not self.telegram_chat_id:
-            return False
+    @staticmethod
+    def save_json(path, data):
         try:
-            response = std_requests.post(f"https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage", json={
-                "chat_id": self.telegram_chat_id,
-                "text": message,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": True,
-            }, timeout=10)
-            return response.status_code == 200
+            path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def new_session(self):
+        """Frische Session durch Tor."""
+        try:
+            self.session.close()
+        except Exception:
+            pass
+        s = cffi_requests.Session(impersonate="chrome131", proxy=TOR_PROXY)
+        s.headers.update({"Accept-Language": "de-DE,de;q=0.9,en;q=0.8"})
+        self.session = s
+        try:
+            r = s.get("https://api.ipify.org", timeout=15)
+            self.ip = r.text.strip() if r.status_code == 200 else "?"
+        except Exception:
+            self.ip = "?"
+
+    def tg(self, method, **kwargs):
+        try:
+            r = requests.post(
+                f"https://api.telegram.org/bot{self.token}/{method}",
+                timeout=20, **kwargs,
+            )
+            if r.status_code == 429:
+                wait = r.json().get("parameters", {}).get("retry_after", 30)
+                print(f"   TG rate-limit {wait}s")
+                time.sleep(wait)
+                return False
+            return r.status_code == 200
         except Exception:
             return False
 
-    def format_item_caption(self, item):
-        cat = item.get("category", "unbekannt")
-        emoji = CAT_EMOJIS.get(cat, "\U0001f4e6")
-        brand = item.get("brand", "?")
-        price = item.get("price", "?")
-        size_str = item.get("size_str", "")
-        title = item.get("title", "?")[:80]
-        url = item.get("url", "")
-        condition = item.get("condition", "")
-        lines = [
-            f"{emoji} <b>{brand}</b>",
-            f"\U0001f4b0 {price}\u20ac",
-            f"\U0001f4cf {size_str}" if size_str else None,
-            f"\U0001f4dd {title}",
-            f"\u2728 {condition}" if condition else None,
-            f'<a href="{url}">\U0001f517 Link</a>',
-        ]
-        return "\n".join(l for l in lines if l)
-
-    def scrape_category(self, category, catalog_ids):
-        max_price = CAT_MAX_PRICES.get(category, 50)
-        sent = 0
-        for catalog_id in catalog_ids:
-            if self._shutdown:
-                break
-            for page in [1]:
-                page_items = self.scrape_catalog_page(catalog_id, page, max_price)
-                if page_items is None:
-                    return sent, True
-                if not page_items:
-                    break
-                for item in page_items:
-                    if self._shutdown:
-                        break
-                    if self._filter_item(item, category):
-                        matched = self.match_brand(item["brand"])
-                        if matched:
-                            item_id = item.get("id", "")
-                            if self.is_new_item(item_id):
-                                item["brand"] = matched
-                                item["category"] = category
-                                print(
-                                    f"   \U0001f195 {matched} | "
-                                    f"{item.get('size_str', '?')} | "
-                                    f"{item.get('price', '?')}\u20ac | "
-                                    f"{item.get('title', '?')[:40]}"
-                                )
-                                self.mark_as_seen(item_id)
-                                self.save_seen_items()
-                                image_url = item.get("image_url", "")
-                                if image_url:
-                                    caption = self.format_item_caption(item)
-                                    result = self.send_telegram_photo(image_url, caption)
-                                    if result == "ok":
-                                        sent += 1
-                                    time.sleep(random.uniform(2.0, 2.5))
-                time.sleep(random.uniform(2, 3))
-            time.sleep(random.uniform(2, 3))
-        return sent, False
-
-    def run(self):
-        print("=" * 60)
-        print("\U0001f680 VINTED SNIPEBOT (Tor + Auto-Rotation)")
-        print("=" * 60)
-        print(f"\U0001f3f7\ufe0f  Marken: {len(self._brand_names)}")
-        print(f"\U0001f4cf Groessenfilter: aktiviert")
-
-        self.tor_ip = self._get_tor_ip()
-        print(f"\U0001f310 Tor IP: {self.tor_ip}")
-        print("=" * 60)
-
-        while True:
+    def fetch(self, url, referer="https://www.vinted.de/"):
+        """GET mit Retry + IP-Wechsel bei Block."""
+        for attempt in range(4):
+            if self.shutdown:
+                return None
             try:
-                print(f"\n\U0001f50d Suche: {datetime.now().strftime('%H:%M:%S')} | IP: {self.tor_ip}")
-                print("-" * 40)
-
-                total_sent = 0
-                blocked = False
-
-                cats = list(CATALOG_IDS.items())
-                random.shuffle(cats)
-
-                for category, catalog_ids in cats:
-                    if blocked or self._shutdown:
-                        break
-                    max_price = CAT_MAX_PRICES.get(category, 50)
-                    print(f"\n\U0001f4c2 {category} ({len(catalog_ids)} Sub-Kats, max {max_price}\u20ac)")
-                    cat_sent, was_blocked = self.scrape_category(category, catalog_ids)
-                    total_sent += cat_sent
-                    if was_blocked:
-                        blocked = True
-                        break
-                    time.sleep(random.uniform(2, 3))
-
-                if blocked:
-                    self.save_seen_items()
+                r = self.session.get(url, timeout=60, headers={"Referer": referer})
+                if r.status_code == 200:
+                    return r
+                if r.status_code == 403:
+                    print(f"   Block -> neue IP...")
+                    self.new_session()
                     time.sleep(10)
                     continue
-
-                if total_sent > 0:
-                    print(f"\n\U0001f4e4 Fertig! {total_sent} Fotos gesendet!")
-                    self.send_telegram_text(f"\u2705 Scan fertig \u2014 {total_sent} Fotos gesendet")
-                else:
-                    print("\n\U0001f4ed Keine neuen Angebote.")
-
-                self.save_seen_items()
-                interval = self.config.get("check_interval", 180)
-                print(f"\n\u2705 Naechste Suche in {interval}s...")
-                print("=" * 40)
-                time.sleep(interval)
-
-            except KeyboardInterrupt:
-                print("\n\n\U0001f6d1 Bot gestoppt!")
-                self.save_seen_items()
-                break
+                return None
             except Exception as e:
-                print(f"\n\u274c Fehler: {e}")
-                import traceback
-                traceback.print_exc()
-                time.sleep(60)
+                print(f"   Fehler: {str(e)[:80]}")
+                time.sleep(8)
+        return None
+
+    def parse_page(self, html_text):
+        items = []
+        seen_ids = set()
+        for m in re.finditer(
+            r'product-item-id-(\d+)--overlay-link[^>]*title="([^"]*)"', html_text
+        ):
+            iid = m.group(1)
+            if iid in seen_ids:
+                continue
+            seen_ids.add(iid)
+            label = html_mod.unescape(m.group(2))
+            brand_m = re.search(r"Marke:\s*([^,]+)", label)
+            size_m = re.search(r"Gr(?:o|\u00f6)\s*e:\s*([^,]+)", label) or re.search(r"Gr\.\s*([^,]+)", label)
+            price_m = re.search(r"(\d+[.,]\d{2})\s*\u20ac", label)
+            cond_m = re.search(r"Zustand:\s*([^,]+)", label)
+            img_m = re.search(
+                rf'product-item-id-{iid}--image[^"]*"[^>]*>.*?<img src="(https://images[^"]+)"',
+                html_text, re.DOTALL,
+            )
+            try:
+                price = float(price_m.group(1).replace(",", ".")) if price_m else 0.0
+            except ValueError:
+                price = 0.0
+            items.append({
+                "id": iid,
+                "title": label.split(",")[0].strip(),
+                "brand": brand_m.group(1).strip() if brand_m else "",
+                "size": size_m.group(1).strip() if size_m else "",
+                "price": price,
+                "cond": cond_m.group(1).strip() if cond_m else "",
+                "url": f"https://www.vinted.de/items/{iid}",
+                "img": img_m.group(1) if img_m else "",
+            })
+        return items
+
+    def ok_item(self, item, category):
+        text = f"{item['title']} {item['brand']}".lower()
+        if any(w in text for w in BAD_WORDS):
+            return False
+        if not item["brand"] or self.norm(item["brand"]) not in self.brands:
+            return False
+        allowed = self.sizes.get(category)
+        if not allowed:
+            return True
+        sz = item["size"].strip().lower()
+        if not sz or sz in ("none", "one size", "einheitsgrosse"):
+            return True
+        return any(a in sz or sz in a for a in allowed)
+
+    def scan_category(self, cat, info):
+        found = 0
+        for cid in info["ids"]:
+            if self.shutdown:
+                break
+            url = (
+                f"https://www.vinted.de/catalog?catalog[]={cid}"
+                f"&price_to={info['max_price']}&order=newest_first"
+            )
+            r = self.fetch(url, referer="https://www.vinted.de/catalog")
+            if r is None:
+                continue
+            for item in self.parse_page(r.text):
+                if self.shutdown:
+                    break
+                if item["id"] in self.seen or not self.ok_item(item, cat):
+                    continue
+                self.seen[item["id"]] = datetime.now().isoformat()
+                emoji = {"schuhe": "\U0001f45f", "hosen_jeans": "\U0001f456", "oberteile": "\U0001f455"}.get(cat, "\U0001f4e6")
+                caption = (
+                    f"{emoji} <b>{item['brand']}</b>\n"
+                    f"\U0001f4b0 {item['price']}€\n"
+                    f"\U0001f4cf {item['size']}\n"
+                    f"\U0001f4dd {item['title'][:70]}\n"
+                    f'<a href="{item["url"]}">\U0001f517 Ansehen</a>'
+                )
+                print(f"   NEU: {item['brand']} | {item['size']} | {item['price']}€ | {item['title'][:40]}")
+                sent = False
+                if item["img"]:
+                    try:
+                        ir = self.session.get(item["img"], timeout=40, headers={"Referer": "https://www.vinted.de/"})
+                        if ir.status_code == 200 and len(ir.content) > 500:
+                            sent = self.tg(
+                                "sendPhoto",
+                                data={"chat_id": self.chat_id, "caption": caption, "parse_mode": "HTML"},
+                                files={"photo": ("i.jpg", ir.content)},
+                            )
+                    except Exception:
+                        pass
+                if not sent:
+                    sent = self.tg("sendMessage", json={
+                        "chat_id": self.chat_id, "text": caption,
+                        "parse_mode": "HTML", "disable_web_page_preview": True,
+                    })
+                if sent:
+                    found += 1
+                time.sleep(random.uniform(2, 4))
+            time.sleep(random.uniform(2, 4))
+        return found
+
+    def run(self):
+        print("=" * 50)
+        print("VINTED SNIPEBOT v2")
+        print(f"IP: {self.ip}")
+        print("=" * 50)
+        while not self.shutdown:
+            total = 0
+            cats = list(CATEGORIES.items())
+            random.shuffle(cats)
+            for cat, info in cats:
+                if self.shutdown:
+                    break
+                print(f"\n[{datetime.now():%H:%M:%S}] {cat} ({len(info['ids'])}) max {info['max_price']}EUR")
+                total += self.scan_category(cat, info)
+            self.save_json(SEEN_FILE, self.seen)
+            print(f"\n{total} gesendet. Weiter sofort...")
+            if self.shutdown:
+                break
+            time.sleep(30)
 
 
 if __name__ == "__main__":
-    bot = VintedSnipebot()
-    bot.run()
+    Bot().run()
