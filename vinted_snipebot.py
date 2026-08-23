@@ -280,11 +280,25 @@ class Bot:
     def _save_seen(self):
         with self.lock:
             try:
+                # Alte Eintraege (>21 Tage) entfernen
+                cutoff = datetime.now().timestamp() - 21 * 86400
+                pruned = {}
+                for iid, ts_str in self.seen.items():
+                    try:
+                        if datetime.fromisoformat(ts_str).timestamp() >= cutoff:
+                            pruned[iid] = ts_str
+                    except Exception:
+                        pruned[iid] = ts_str
+                self.seen = pruned
                 SEEN_FILE.write_text(json.dumps(self.seen, indent=2), encoding="utf-8")
             except Exception:
                 pass
 
     def tg_send_photo_url(self, img_url, caption):
+        """Foto per URL an Telegram (Telegram laedt selbst von Vinted)."""
+        return self._tg_photo(img_url, caption)
+
+    def _tg_photo(self, img_url, caption):
         try:
             r = requests.post(
                 f"https://api.telegram.org/bot{self.token}/sendPhoto",
@@ -346,6 +360,8 @@ class Bot:
         ]
         if item["size"]:
             lines.append(f"\U0001f4cf {item['size']}")
+        if item["cond"]:
+            lines.append(f"\u2728 {item['cond'][:40]}")
         if item["favs"] is not None:
             fav_icon = "\U0001f525" if item["favs"] >= 20 else "\u2764\ufe0f"
             lines.append(f"{fav_icon} {item['favs']} Favoriten")
@@ -357,7 +373,12 @@ class Bot:
               f"{item['price']}€ | \u2764\ufe0f{item['favs'] or '-'} | {item['title'][:35]}")
         sent = False
         if item["img"]:
-            sent = self.tg_send_photo_url(item["img"], caption)
+            # Erst grosse Version probieren (310x430 -> 758x1136), dann Thumbnail
+            big_url = item["img"].replace("/310x430/", "/758x1136/")
+            if big_url != item["img"]:
+                sent = self.tg_send_photo_url(big_url, caption)
+            if not sent:
+                sent = self.tg_send_photo_url(item["img"], caption)
         if not sent:
             sent = self.tg_send_message(caption)
         return sent
