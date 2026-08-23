@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-Vinted Snipebot v4
+Vinted Snipebot v5
 - 6 Worker parallel mit separaten Tor-Circuits
-- Laender: DE, AT, FR, BE, NL, IT
-- Zwei Limits: Kategorie UND Marken-Tier (das niedrigere gewinnt)
-- Telegram laedt Fotos direkt von Vinted
+- Laender: DE, AT, FR, BE, NL, IT (+ Seite 2 auf DE)
+- Keyword-Suchen zusaetzlich zu Kategorien
+- Favoriten + Views + Verkaeufer aus eingebettetem JSON
+- Zustand immer auf Deutsch (uebersetzt aus allen Sprachen)
+- Tages-Statistik per Telegram
 """
 
 import html as html_mod
@@ -26,8 +28,8 @@ CONFIG_FILE = BASE / "config.json"
 SEEN_FILE = BASE / "seen_items.json"
 NUM_WORKERS = 6
 CYCLE_SLEEP = 10
+SCAN_PAGE2_DE = True
 
-# Laender-Domains (Sprache im Label variiert -> Multi-Pattern-Parsing)
 SCAN_DOMAINS = [
     "www.vinted.de",
     "www.vinted.at",
@@ -58,7 +60,8 @@ SIZE_KEYS = {
     "oberteile": ["damen_kleidung", "herren_kleidung"],
 }
 
-EMOJIS = {"schuhe": "\U0001f45f", "hosen_jeans": "\U0001f456", "oberteile": "\U0001f455"}
+EMOJIS = {"schuhe": "\U0001f45f", "hosen_jeans": "\U0001f456", "oberteile": "\U0001f455",
+          "keyword": "\U0001f50e"}
 
 # Marken-Tier Limits (normalisiert via norm()); Kollabs folgen Hauptmarke
 BRAND_TIERS = {
@@ -140,7 +143,7 @@ BAD_WORDS = [
     "staubbeutel nur", "dust bag only", "dustbag only",
 ]
 
-# Multi-Sprach-Patterns (de/fr/nl/it/es gleichzeitig)
+# Multi-Sprach-Patterns fuer Overlay-Label (de/fr/nl/it/es gleichzeitig)
 BRAND_RE = re.compile(r"(?:Marke|Marque|Marca|Merk)\s*:\s*([^,]+)")
 SIZE_RE = re.compile(
     r"(?:Gr\u00f6\u00dfe|Gr\u00f6sse|Groesse|Gr\.\s*|Size|Taille|Taglia|Talla|Maat)\s*\.?\s*:\s*([^,]+)"
@@ -150,6 +153,24 @@ COND_RE = re.compile(
 )
 PRICE_RE = re.compile(r"(\d+[.,]\d{2})")
 
+# Eingebettetes JSON am Seitenende (RSC-Payload, escaped Quotes)
+FAV_ID_RE = re.compile(r'\\?"favourite_count\\?":\s*(\d+),\s*\\?"id\\?":\s*(\d{7,12})')
+LOGIN_RE = re.compile(r'\\?"login\\?":\\?"([^"\\]{1,40})')
+VIEWS_RE = re.compile(r'\\?"view_count\\?":(\d+)')
+
+# Zustands-Uebersetzung -> Deutsch
+CONDITION_MAP = [
+    (("neu mit etikett", "new with tags", "neuf avec \u00e9tiquette", "nuovo con etichetta",
+      "nuevo con etiquetas", "nieuw met kaartje"), "Neu mit Etikett"),
+    (("neu ohne etikett", "new without tags", "neuf sans \u00e9tiquette", "nuovo senza etichetta",
+      "nuevo sin etiquetas", "nieuw zonder kaartje"), "Neu ohne Etikett"),
+    (("sehr gut", "very good", "tr\u00e8s bon \u00e9tat", "molto buono",
+      "muy bueno", "zeer goede staat"), "Sehr gut"),
+    (("gut", "good", "bon \u00e9tat", "buono", "bueno", "goede staat"), "Gut"),
+    (("befriedigend", "satisfactory", "satisfaisant", "discreto",
+      "satisfactorio", "redelijke staat"), "Befriedigend"),
+]
+
 
 def norm(s):
     s = s.lower()
@@ -157,12 +178,39 @@ def norm(s):
     return re.sub(r"[^a-z0-9]", "", s)
 
 
+def translate_condition(cond):
+    if not cond:
+        return ""
+    c = cond.strip().lower()
+    for needles, german in CONDITION_MAP:
+        if any(n in c for n in needles):
+            return german
+    return cond.strip()
+
+
+def extract_rsc_data(html_text):
+    """Fav/Views/Seller aus dem eingebetteten JSON ziehen."""
+    meta = {}
+    for m in FAV_ID_RE.finditer(html_text):
+        favs, iid = int(m.group(1)), m.group(2)
+        window = html_text[m.end():m.end() + 3500]
+        cs = window.find("content_source")
+        seg = window[:cs] if cs > 0 else window
+        login_m = LOGIN_RE.search(seg)
+        views_m = VIEWS_RE.search(seg)
+        meta[iid] = {
+            "favs": favs,
+            "seller": login_m.group(1) if login_m else "",
+            "views": int(views_m.group(1)) if views_m else None,
+        }
+    return meta
+
+
 class Worker:
     def __init__(self, wid):
         self.wid = wid
         self.session = None
         self.rotations = 0
-        # Eigener Username pro Worker -> Tor isoliert Circuits automatisch
         self.proxy = f"socks5h://worker{wid}:x@127.0.0.1:9050"
 
     def start(self):
@@ -173,7 +221,7 @@ class Worker:
         self.session = s
 
     def rotate(self):
-        """Neuer Circuit: eindeutiger Username erzwingt neuen Tor-Circuit."""
+        """Eindeutiger Username pro Rotation = garantiert neuer Circuit."""
         self.rotations += 1
         self.proxy = f"socks5h://worker{self.wid}-r{self.rotations}:x@127.0.0.1:9050"
         print(f"   [W{self.wid}] Block -> neuer Circuit (#{self.rotations})")
@@ -197,6 +245,8 @@ class Worker:
 
 
 def parse_page(html_text):
+    rsc = extract_rsc_data(html_text)
+
     items = []
     seen_ids = set()
     for m in re.finditer(
@@ -210,10 +260,10 @@ def parse_page(html_text):
         brand_m = BRAND_RE.search(label)
         size_m = SIZE_RE.search(label)
         cond_m = COND_RE.search(label)
-        # Preis = letzte Zahl im Label (funktioniert fuer alle Waehrungsformate)
+        # Erste Zahl = Artikelpreis (zweite ist Gesamtpreis inkl. Gebuehr)
         prices = PRICE_RE.findall(label)
         try:
-            price = float(prices[-1].replace(",", ".")) if prices else 0.0
+            price = float(prices[0].replace(",", ".")) if prices else 0.0
         except ValueError:
             price = 0.0
 
@@ -221,12 +271,7 @@ def parse_page(html_text):
             rf'product-item-id-{iid}--image[^"]*"[^>]*>.*?<img src="(https://images[^"]+)"',
             html_text, re.DOTALL,
         )
-        # Favoriten aus eingebettetem JSON (best effort)
-        favs = None
-        window = html_text[m.start():m.start() + 3000]
-        fm = re.search(r'"favourite_count":(\d+)', window)
-        if fm:
-            favs = int(fm.group(1))
+        extra = rsc.get(iid, {})
 
         items.append({
             "id": iid,
@@ -234,10 +279,12 @@ def parse_page(html_text):
             "brand": brand_m.group(1).strip() if brand_m else "",
             "size": size_m.group(1).strip() if size_m else "",
             "price": price,
-            "cond": cond_m.group(1).strip() if cond_m else "",
+            "cond": translate_condition(cond_m.group(1)) if cond_m else "",
             "url": f"https://www.vinted.de/items/{iid}",
             "img": img_m.group(1) if img_m else "",
-            "favs": favs,
+            "favs": extra.get("favs"),
+            "views": extra.get("views"),
+            "seller": extra.get("seller", ""),
         })
     return items
 
@@ -248,13 +295,14 @@ class Bot:
         self.token = self.cfg["telegram_bot_token"]
         self.chat_id = self.cfg["telegram_chat_id"]
         self.seen = self._load(SEEN_FILE, {})
-        # Marken-Limits: konfigurierte Marke -> Tier-Limit
+        self.keywords = [k for k in self.cfg.get("keywords", []) if k]
         self.limits = {}
         default_tier = 40
         for name in self.cfg.get("brands", {}):
             t = BRAND_TIERS.get(norm(name))
             self.limits[norm(name)] = t if t else default_tier
         print(f"Marken mit Tier-Limit: {len(self.limits)}")
+        print(f"Keywords: {self.keywords}")
         self.sizes = {}
         for cat, keys in SIZE_KEYS.items():
             allowed = set()
@@ -270,6 +318,7 @@ class Bot:
             self.workers.append(w)
         self.lock = threading.Lock()
         self.shutdown = False
+        self.stats_today = {"date": datetime.now().strftime("%Y-%m-%d"), "sent": 0}
         signal.signal(signal.SIGTERM, self._stop)
         signal.signal(signal.SIGINT, self._stop)
 
@@ -287,7 +336,6 @@ class Bot:
     def _save_seen(self):
         with self.lock:
             try:
-                # Alte Eintraege (>21 Tage) entfernen
                 cutoff = datetime.now().timestamp() - 21 * 86400
                 pruned = {}
                 for iid, ts_str in self.seen.items():
@@ -302,10 +350,6 @@ class Bot:
                 pass
 
     def tg_send_photo_url(self, img_url, caption):
-        """Foto per URL an Telegram (Telegram laedt selbst von Vinted)."""
-        return self._tg_photo(img_url, caption)
-
-    def _tg_photo(self, img_url, caption):
         try:
             r = requests.post(
                 f"https://api.telegram.org/bot{self.token}/sendPhoto",
@@ -347,10 +391,12 @@ class Bot:
         b = norm(item["brand"])
         if not b or b not in self.limits:
             return False
-        cat_cap = CATEGORIES[category]["max_price"]
+        cat_cap = CATEGORIES.get(category, {}).get("max_price", 50)
         cap = min(cat_cap, self.limits[b])
         if item["price"] <= 0 or item["price"] > cap:
             return False
+        if category == "keyword":
+            return True
         allowed = self.sizes.get(category)
         if allowed:
             sz = item["size"].strip().lower()
@@ -369,18 +415,24 @@ class Bot:
             lines.append(f"\U0001f4cf {item['size']}")
         if item["cond"]:
             lines.append(f"\u2728 {item['cond'][:40]}")
+        stats = []
         if item["favs"] is not None:
-            fav_icon = "\U0001f525" if item["favs"] >= 20 else "\u2764\ufe0f"
-            lines.append(f"{fav_icon} {item['favs']} Favoriten")
+            stats.append(f"\u2764\ufe0f {item['favs']}")
+        if item["views"]:
+            stats.append(f"\U0001f441 {item['views']}")
+        if stats:
+            lines.append(" · ".join(stats))
+        if item["seller"]:
+            lines.append(f"\U0001f464 {html_mod.escape(item['seller'])}")
         lines.append(f"\U0001f4dd {item['title'][:70]}")
         lines.append(f'<a href="{item["url"]}">\U0001f517 Ansehen</a>')
         caption = "\n".join(lines)
 
         print(f"   NEU [{cat}]: {item['brand']} | {item['size']} | "
-              f"{item['price']}€ | \u2764\ufe0f{item['favs'] or '-'} | {item['title'][:35]}")
+              f"{item['price']}€ | \u2764\ufe0f{item['favs'] if item['favs'] is not None else '-'} "
+              f"| {item['title'][:35]}")
         sent = False
         if item["img"]:
-            # Erst grosse Version probieren (310x430 -> 758x1136), dann Thumbnail
             big_url = item["img"].replace("/310x430/", "/758x1136/")
             if big_url != item["img"]:
                 sent = self.tg_send_photo_url(big_url, caption)
@@ -390,9 +442,8 @@ class Bot:
             sent = self.tg_send_message(caption)
         return sent
 
-    def scan_job(self, worker, cat, cid, cat_max, domain):
-        url = f"https://{domain}/catalog?catalog[]={cid}&price_to={cat_max}&order=newest_first"
-        r = worker.fetch(url, referer=f"https://{domain}/")
+    def scan_job(self, worker, url, referer, cat):
+        r = worker.fetch(url, referer=referer)
         if r is None:
             return 0
         sent = 0
@@ -407,36 +458,58 @@ class Bot:
                 self.seen[item["id"]] = datetime.now().isoformat()
             if self.process_item(item, cat):
                 sent += 1
+                with self.lock:
+                    self.stats_today["sent"] += 1
             time.sleep(random.uniform(1.5, 2.5))
         return sent
 
-    def run(self):
-        print("=" * 50)
-        print(f"VINTED SNIPEBOT v4 ({NUM_WORKERS} Worker)")
-        print(f"Laender: {', '.join(d.split('.')[2] for d in SCAN_DOMAINS)}")
-        print("Limits: Kategorie + Marken-Tier (das niedrigere gilt)")
-        print("=" * 50)
+    def build_jobs(self):
+        jobs = []
         base_jobs = []
         for cat, info in CATEGORIES.items():
             for cid in info["ids"]:
                 base_jobs.append((cat, cid, info["max_price"]))
+        for dom in SCAN_DOMAINS:
+            for cat, cid, mp in base_jobs:
+                url = f"https://{dom}/catalog?catalog[]={cid}&price_to={mp}&order=newest_first"
+                jobs.append((url, f"https://{dom}/", cat))
+        # Seite 2 nur auf DE (aehltere Treffer)
+        if SCAN_PAGE2_DE:
+            for cat, cid, mp in base_jobs:
+                url = (f"https://www.vinted.de/catalog?catalog[]={cid}"
+                       f"&page=2&price_to={mp}&order=newest_first")
+                jobs.append((url, "https://www.vinted.de/", cat))
+        # Keyword-Suchen auf DE
+        for kw in self.keywords:
+            url = (f"https://www.vinted.de/catalog?search_text={kw.replace(' ', '%20')}"
+                   f"&order=newest_first")
+            jobs.append((url, "https://www.vinted.de/", "keyword"))
+        random.shuffle(jobs)
+        return jobs
+
+    def run(self):
+        print("=" * 50)
+        print(f"VINTED SNIPEBOT v5 ({NUM_WORKERS} Worker)")
+        print(f"Laender: {', '.join(d.split('.')[2] for d in SCAN_DOMAINS)}")
+        print("Limits: Kategorie + Marken-Tier (das niedrigere gilt)")
+        print("=" * 50)
         cycle = 0
         while not self.shutdown:
+            today = datetime.now().strftime("%Y-%m-%d")
+            if today != self.stats_today["date"]:
+                self.tg_send_message(
+                    f"\U0001f4ca Gestern: {self.stats_today['sent']} Items gefunden")
+                self.stats_today = {"date": today, "sent": 0}
+
             t0 = time.time()
-            jobs = [
-                (cat, cid, mp, dom)
-                for dom in SCAN_DOMAINS
-                for cat, cid, mp in base_jobs
-            ]
-            random.shuffle(jobs)
-            print(f"\n=== Scan #{cycle} {datetime.now():%H:%M:%S} "
-                  f"({len(jobs)} Jobs, {len(SCAN_DOMAINS)} Laender) ===")
+            jobs = self.build_jobs()
+            print(f"\n=== Scan #{cycle} {datetime.now():%H:%M:%S} ({len(jobs)} Jobs) ===")
             total = 0
             with ThreadPoolExecutor(max_workers=NUM_WORKERS) as ex:
                 futures = [
                     ex.submit(self.scan_job, self.workers[i % NUM_WORKERS],
-                              cat, cid, mp, dom)
-                    for i, (cat, cid, mp, dom) in enumerate(jobs)
+                              url, ref, cat)
+                    for i, (url, ref, cat) in enumerate(jobs)
                 ]
                 for f in as_completed(futures):
                     if self.shutdown:
@@ -447,7 +520,8 @@ class Bot:
                         print(f"   Job-Fehler: {str(e)[:80]}")
             self._save_seen()
             dur = int(time.time() - t0)
-            print(f"=== Fertig in {dur}s, {total} gesendet ===")
+            print(f"=== Fertig in {dur}s, {total} gesendet | heute: "
+                  f"{self.stats_today['sent']} ===")
             cycle += 1
             if not self.shutdown:
                 time.sleep(CYCLE_SLEEP)

@@ -4,6 +4,7 @@
   "max_price": 50,
   "check_interval": 180,
   "prefer_non_german": true,
+  "keywords": [],
   "brands": {
     "Acne Studios": null,
     "Adidas x Gucci": null,
