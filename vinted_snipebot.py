@@ -102,7 +102,7 @@ BRAND_TIERS = {
     "commedesgaronsxconverse": 45, "conversexcommedesgarons": 45,
     "nikexambush": 45, "nikexcommedesgarons": 45,
     "nikexsacai": 45, "sacaixnike": 45,
-    "nikextravis scott": 45, "travisscottxnike": 45,
+    "nikextravisscott": 45, "travisscottxnike": 45,
     "nikexundercover": 45, "undercoverxnike": 45,
     "newbalancexaimeleondore": 45, "newbalancexjjjjound": 45,
     "supreme": 45, "supremexnike": 45, "supremexthenorthface": 45,
