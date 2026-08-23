@@ -20,28 +20,18 @@ CONFIG_FILE = Path(__file__).parent / "config.json"
 SEEN_ITEMS_FILE = Path(__file__).parent / "seen_items.json"
 
 CATALOG_IDS = {
-    "tops_tshirts": ["12"],
-    "hosen_jeans": ["9", "183"],
-    "blazer_anzuege": ["8"],
-    "schuhe": ["2632", "543", "1049", "2630", "215", "1242", "1452", "1233"],
-    "taschen": ["156", "158", "552", "160", "157", "159", "1848", "94"],
-    "guertel": ["20", "96"],
+    "taschen": ["156", "158", "552", "160"],
+    "schuhe": ["2632", "543", "215", "1233"],
     "sonnenbrillen": ["26", "98"],
-    "schals": ["89", "87"],
 }
 
 CAT_EMOJIS = {
-    "schuhe": "\U0001f45f", "taschen": "\U0001f45c",
-    "blazer_anzuege": "\U0001f935", "pullover_strick": "\U0001f9f6",
-    "hosen_jeans": "\U0001f456", "guertel": "\U0001f454", "sonnenbrillen": "\U0001f576\ufe0f",
-    "tops_tshirts": "\U0001f455", "schals": "\U0001f9e3",
+    "taschen": "\U0001f45c", "schuhe": "\U0001f45f",
+    "sonnenbrillen": "\U0001f576\ufe0f",
 }
 
 CAT_MAX_PRICES = {
-    "schuhe": 50, "taschen": 45,
-    "blazer_anzuege": 40, "pullover_strick": 30,
-    "hosen_jeans": 30, "guertel": 25, "sonnenbrillen": 25,
-    "tops_tshirts": 15, "schals": 10,
+    "taschen": 45, "schuhe": 50, "sonnenbrillen": 25,
 }
 
 BABY_KIDS_BLACKLIST = [
@@ -164,15 +154,9 @@ class VintedSnipebot:
         sizes_config = self.config.get("sizes", {})
         cache = {}
         size_map = {
-            "schuhe": ["damen_schuhe", "herren_schuhe"],
             "taschen": [],
-            "blazer_anzuege": ["damen_kleidung", "herren_kleidung", "herren_anzugjacken"],
-            "pullover_strick": ["damen_kleidung", "herren_kleidung"],
-            "hosen_jeans": ["damen_jeans", "damen_kleidung", "herren_jeans", "herren_kleidung"],
-            "guertel": ["guertel"],
+            "schuhe": ["damen_schuhe", "herren_schuhe"],
             "sonnenbrillen": [],
-            "tops_tshirts": ["damen_kleidung", "herren_kleidung", "herren_hemden"],
-            "schals": [],
         }
         for category, size_keys in size_map.items():
             allowed = set()
@@ -246,7 +230,7 @@ class VintedSnipebot:
         for attempt in range(5):
             try:
                 url = f"https://www.vinted.de/catalog?catalog[]={catalog_id}&page={page}&price_to={max_price}&order=newest_first"
-                response = self.session.get(url, timeout=45, headers={"Referer": "https://www.vinted.de/catalog"})
+                response = self.session.get(url, timeout=90, headers={"Referer": "https://www.vinted.de/catalog"})
 
                 if response.status_code == 403:
                     self.block_count += 1
@@ -320,7 +304,7 @@ class VintedSnipebot:
         if not self.telegram_bot_token or not self.telegram_chat_id or not image_url:
             return "error"
         try:
-            img_resp = self.session.get(image_url, headers={"Referer": "https://www.vinted.de/"}, timeout=15)
+            img_resp = self.session.get(image_url, headers={"Referer": "https://www.vinted.de/"}, timeout=30)
             if img_resp.status_code != 200 or len(img_resp.content) < 100:
                 return "error"
         except Exception:
