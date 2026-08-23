@@ -389,7 +389,7 @@ class Bot:
         while not self.shutdown:
             t0 = time.time()
             alt_domain = ROTATE_DOMAINS[cycle % len(ROTATE_DOMAINS)]
-            alt_lang = alt_domain.split(".")[1]
+            alt_lang = alt_domain.split(".")[2]
             jobs = [(cat, cid, mp, MAIN_DOMAIN, "de") for cat, cid, mp in base_jobs]
             jobs += [(cat, cid, mp, alt_domain, alt_lang) for cat, cid, mp in base_jobs]
             random.shuffle(jobs)
