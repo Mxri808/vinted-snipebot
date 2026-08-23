@@ -161,6 +161,7 @@ class Worker:
     def __init__(self, wid):
         self.wid = wid
         self.session = None
+        self.rotations = 0
         # Eigener Username pro Worker -> Tor isoliert Circuits automatisch
         self.proxy = f"socks5h://worker{wid}:x@127.0.0.1:9050"
 
@@ -171,6 +172,13 @@ class Worker:
         })
         self.session = s
 
+    def rotate(self):
+        """Neuer Circuit: eindeutiger Username erzwingt neuen Tor-Circuit."""
+        self.rotations += 1
+        self.proxy = f"socks5h://worker{self.wid}-r{self.rotations}:x@127.0.0.1:9050"
+        print(f"   [W{self.wid}] Block -> neuer Circuit (#{self.rotations})")
+        self.start()
+
     def fetch(self, url, referer):
         for attempt in range(3):
             try:
@@ -178,8 +186,7 @@ class Worker:
                 if r.status_code == 200:
                     return r
                 if r.status_code == 403:
-                    print(f"   [W{self.wid}] Block -> neuer Circuit")
-                    self.start()
+                    self.rotate()
                     time.sleep(8)
                     continue
                 return None
