@@ -545,8 +545,19 @@ class Bot:
             url = (f"https://www.vinted.de/catalog?search_text={kw.replace(' ', '%20')}"
                    f"&order=newest_first")
             jobs.append((url, "https://www.vinted.de/", "keyword"))
-        random.shuffle(jobs)
-        return jobs
+        # Fair verteilen: Round-Robin ueber Kategorien, innerhalb zufaellig
+        by_cat = {}
+        for j in jobs:
+            by_cat.setdefault(j[2], []).append(j)
+        for lst in by_cat.values():
+            random.shuffle(lst)
+        fair = []
+        cats = [c for c in by_cat]
+        while any(by_cat[c] for c in cats):
+            for c in cats:
+                if by_cat[c]:
+                    fair.append(by_cat[c].pop())
+        return fair
 
     # ---------- Telegram-Kommandos ----------
 
