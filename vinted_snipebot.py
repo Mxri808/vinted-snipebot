@@ -319,6 +319,8 @@ class Bot:
         self.cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
         self.token = self.cfg["telegram_bot_token"]
         self.chat_id = str(self.cfg["telegram_chat_id"])
+        # Multi-Channel: pro Kategorie eigener Chat/Channel (Fallback = default)
+        self.channels = self.cfg.get("telegram_channels", {})
         self.seen = self._load(SEEN_FILE, {})
         self.keywords = [k for k in self.cfg.get("keywords", []) if k]
         # Limits: Defaults + tier_overrides aus config
@@ -400,12 +402,17 @@ class Bot:
             print(f"   tier save Fehler: {e}")
             return False
 
-    def tg_send_photo_url(self, img_url, caption):
+    def _chat_for(self, category):
+        if self.channels:
+            return str(self.channels.get(category) or self.channels.get("default") or self.chat_id)
+        return self.chat_id
+
+    def tg_send_photo_url(self, img_url, caption, category="default"):
         try:
             r = requests.post(
                 f"https://api.telegram.org/bot{self.token}/sendPhoto",
                 data={
-                    "chat_id": self.chat_id,
+                    "chat_id": self._chat_for(category),
                     "photo": img_url,
                     "caption": caption,
                     "parse_mode": "HTML",
@@ -421,12 +428,12 @@ class Bot:
         except Exception:
             return False
 
-    def tg_send_message(self, text):
+    def tg_send_message(self, text, category="default"):
         try:
             r = requests.post(
                 f"https://api.telegram.org/bot{self.token}/sendMessage",
                 json={
-                    "chat_id": self.chat_id, "text": text,
+                    "chat_id": self._chat_for(category), "text": text,
                     "parse_mode": "HTML", "disable_web_page_preview": True,
                 },
                 timeout=25,
@@ -487,11 +494,11 @@ class Bot:
         if item["img"]:
             big_url = item["img"].replace("/310x430/", "/758x1136/")
             if big_url != item["img"]:
-                sent = self.tg_send_photo_url(big_url, caption)
+                sent = self.tg_send_photo_url(big_url, caption, category=cat)
             if not sent:
-                sent = self.tg_send_photo_url(item["img"], caption)
+                sent = self.tg_send_photo_url(item["img"], caption, category=cat)
         if not sent:
-            sent = self.tg_send_message(caption)
+            sent = self.tg_send_message(caption, category=cat)
         return sent
 
     def scan_job(self, worker, url, referer, cat):
@@ -543,8 +550,15 @@ class Bot:
 
     # ---------- Telegram-Kommandos ----------
 
+    def _is_authorized(self, chat_id_str):
+        if chat_id_str == self.chat_id:
+            return True
+        if self.channels and chat_id_str in {str(v) for v in self.channels.values()}:
+            return True
+        return False
+
     def _handle_command(self, text, chat_id_str):
-        if chat_id_str != self.chat_id:
+        if not self._is_authorized(chat_id_str):
             return
         parts = text.strip().split()
         if not parts:

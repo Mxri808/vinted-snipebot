@@ -6,6 +6,12 @@
   "prefer_non_german": true,
   "keywords": [],
   "tier_overrides": {},
+  "telegram_channels": {
+    "schuhe": "8910104706",
+    "hosen_jeans": "8910104706",
+    "oberteile": "8910104706",
+    "default": "8910104706"
+  },
   "brands": {
     "Armani": null,
     "Armani Exchange": null,
