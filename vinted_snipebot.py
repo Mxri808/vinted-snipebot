@@ -29,7 +29,7 @@ from curl_cffi import requests as cffi_requests
 BASE = Path(__file__).parent
 CONFIG_FILE = BASE / "config.json"
 SEEN_FILE = BASE / "seen_items.json"
-NUM_WORKERS = 8
+NUM_WORKERS = 12
 CYCLE_SLEEP = 5
 SCAN_PAGE2_DE = True
 WATCHDOG_TIMEOUT = 600  # 10 Min ohne Scan -> Alarm
@@ -258,17 +258,17 @@ class Worker:
     def fetch(self, url, referer):
         for attempt in range(3):
             try:
-                r = self.session.get(url, timeout=60, headers={"Referer": referer})
+                r = self.session.get(url, timeout=30, headers={"Referer": referer})
                 if r.status_code == 200:
                     return r
                 if r.status_code == 403:
                     self.rotate()
-                    time.sleep(8)
+                    time.sleep(4)
                     continue
                 return None
             except Exception as e:
                 print(f"   [W{self.wid}] Fehler: {str(e)[:70]}")
-                time.sleep(6)
+                time.sleep(3)
         return None
 
 
@@ -521,7 +521,7 @@ class Bot:
                 sent += 1
                 with self.lock:
                     self.stats_today["sent"] += 1
-            time.sleep(random.uniform(1.5, 2.5))
+            time.sleep(random.uniform(0.8, 1.5))
         return sent
 
     def build_jobs(self):
