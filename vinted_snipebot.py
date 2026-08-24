@@ -29,8 +29,8 @@ from curl_cffi import requests as cffi_requests
 BASE = Path(__file__).parent
 CONFIG_FILE = BASE / "config.json"
 SEEN_FILE = BASE / "seen_items.json"
-NUM_WORKERS = 6
-CYCLE_SLEEP = 10
+NUM_WORKERS = 8
+CYCLE_SLEEP = 5
 SCAN_PAGE2_DE = True
 WATCHDOG_TIMEOUT = 600  # 10 Min ohne Scan -> Alarm
 
